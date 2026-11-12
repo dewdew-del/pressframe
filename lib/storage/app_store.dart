@@ -3,9 +3,11 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../engine/decode.dart';
+import '../models/kit.dart';
 import '../models/preset.dart';
 import '../models/template.dart';
 
@@ -250,6 +252,160 @@ class AppStore {
 
   Future<ui.Image> asset(String file, {int maxLongEdge = 4096}) =>
       decodeImage(assetFile(file).path, maxLongEdge: maxLongEdge);
+
+  // ---- Publication kit (.pfkit) ----
+
+  /// The bytes of a `.pfkit` file: a zip with kit.json plus `assets/NAME.png` for every logo and
+  /// frame the templates use. The credit text is never part of a kit; its style is.
+  Future<Uint8List> encodeKit(String name, {CreditStyle credit = const CreditStyle()}) async {
+    final kit = Kit(
+      name: name,
+      presets: await loadPresets(),
+      templates: await loadTemplates(),
+      credit: credit,
+    );
+    final archive = Archive()
+      ..add(
+        ArchiveFile.bytes(
+          'kit.json',
+          utf8.encode(jsonEncode({'pressframe': 'kit', 'version': 1, ...kit.toJson()})),
+        ),
+      );
+    for (final file in {for (final t in kit.templates) ...assetFiles(t)}) {
+      if (!isSafeAssetName(file)) continue;
+      final f = assetFile(file);
+      if (f.existsSync()) archive.add(ArchiveFile.bytes('assets/$file', await f.readAsBytes()));
+    }
+    return ZipEncoder().encodeBytes(archive);
+  }
+
+  Future<void> exportKit(String name, String filePath, {CreditStyle credit = const CreditStyle()}) async =>
+      File(filePath).writeAsBytes(await encodeKit(name, credit: credit), flush: true);
+
+  /// Adds a kit's presets, templates and images to this install and returns what was added
+  /// (with the names they ended up with). An incoming name that already exists becomes
+  /// "Name (2)"; nothing of the user's is replaced.
+  ///
+  /// The whole file is checked in memory first. Anything unexpected throws
+  /// [FormatException] before a single byte is written.
+  Future<Kit> importKit(String filePath, {int maxUnpackedBytes = 200 * 1024 * 1024}) async {
+    final Uint8List bytes;
+    try {
+      final file = File(filePath);
+      if (await file.length() > maxUnpackedBytes) throw const FormatException('The kit is too large');
+      bytes = await file.readAsBytes();
+    } on FileSystemException catch (e) {
+      throw FormatException('Cannot read the file (${e.message})');
+    }
+    final Archive archive;
+    try {
+      archive = ZipDecoder().decodeBytes(bytes);
+    } on Object {
+      throw const FormatException('Not a PressFrame kit');
+    }
+
+    // Only two kinds of entry are allowed: kit.json and assets/<plain-name>.png.
+    // The pattern has no room for "..", a leading slash, a backslash or a drive letter.
+    final assetEntry = RegExp(r'^assets/([A-Za-z0-9_-]{1,80}\.png)$');
+    Uint8List? kitJson;
+    final pictures = <String, Uint8List>{};
+    var declared = 0, actual = 0;
+    for (final entry in archive.files) {
+      if (!entry.isFile && (entry.name == 'assets/' || entry.name == 'assets')) continue;
+      if (!entry.isFile || entry.isSymbolicLink) {
+        throw FormatException('Unexpected entry in the kit: ${entry.name}');
+      }
+      // shortcut: trusts the zip's declared sizes to stop a zip bomb before unpacking it,
+      // upgrade to a streaming size check if kits ever come from strangers.
+      declared += entry.size;
+      if (declared > maxUnpackedBytes) throw const FormatException('The kit is too large');
+      final match = assetEntry.firstMatch(entry.name);
+      if (entry.name != 'kit.json' && match == null) {
+        throw FormatException('Unexpected file in the kit: ${entry.name}');
+      }
+      final Uint8List content;
+      try {
+        content = entry.content;
+      } on Object {
+        throw const FormatException('The kit is damaged');
+      }
+      actual += content.length;
+      if (actual > maxUnpackedBytes) throw const FormatException('The kit is too large');
+      if (match == null) {
+        kitJson = content;
+      } else {
+        if (!isWholePng(content)) throw FormatException('${entry.name} is not a PNG image');
+        pictures[match.group(1)!] = content;
+      }
+    }
+    if (kitJson == null) throw const FormatException('Not a PressFrame kit (kit.json is missing)');
+
+    final Kit kit;
+    try {
+      final data = jsonDecode(utf8.decode(kitJson));
+      if (data is! Map<String, dynamic> || data['pressframe'] != 'kit') {
+        throw const FormatException('Not a PressFrame kit');
+      }
+      kit = Kit.fromJson(data);
+    } on FormatException {
+      rethrow;
+    } on Object {
+      // wrong types inside otherwise valid JSON
+      throw const FormatException('The kit is damaged');
+    }
+    for (final t in kit.templates) {
+      if (!assetFiles(t).every(isSafeAssetName)) {
+        throw FormatException('Template "${t.name}" points outside the kit');
+      }
+    }
+
+    // Everything is valid: now write. Pictures are stored under a name made from their
+    // content, so templates are pointed at wherever each picture really landed.
+    final stored = <String, String>{};
+    for (final e in pictures.entries) {
+      stored[e.key] = await storeAssetBytes(e.value);
+    }
+    String at(String file) => stored[file] ?? file;
+
+    final presets = await loadPresets();
+    final addedPresets = <Preset>[];
+    for (final p in kit.presets) {
+      final added = Preset(
+        name: uniqueName(p.name, [...presets, ...addedPresets].map((e) => e.name)),
+        params: p.params,
+      );
+      addedPresets.add(added);
+    }
+    final templates = await loadTemplates();
+    final addedTemplates = <Template>[];
+    for (final t in kit.templates) {
+      final name = uniqueName(t.name, [...templates, ...addedTemplates].map((e) => e.name));
+      addedTemplates.add(switch (t) {
+        BuiltTemplate() => BuiltTemplate(
+          name: name,
+          band: t.band,
+          logos: [
+            for (final l in t.logos)
+              LogoLayer(
+                file: at(l.file),
+                cx: l.cx,
+                cy: l.cy,
+                widthFraction: l.widthFraction,
+                opacity: l.opacity,
+              ),
+          ],
+        ),
+        FrameTemplate() => FrameTemplate(name: name, file: at(t.file), aspect: t.aspect),
+      });
+    }
+    if (addedPresets.isNotEmpty) {
+      await _writeList('presets.json', [for (final e in [...presets, ...addedPresets]) e.toJson()]);
+    }
+    if (addedTemplates.isNotEmpty) {
+      await _writeList('templates.json', [for (final e in [...templates, ...addedTemplates]) e.toJson()]);
+    }
+    return Kit(name: kit.name, presets: addedPresets, templates: addedTemplates, credit: kit.credit);
+  }
 
   /// FNV-1a, enough to turn a path or a file's content into a file name.
   static String _hash(String s) => _hashBytes(utf8.encode(s));

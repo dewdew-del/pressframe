@@ -63,6 +63,7 @@ class _DesktopShellState extends State<DesktopShell> {
   bool _cropping = false; // the photo area shows the crop tool instead of the preview
   bool _dropping = false; // files are being dragged over the window
   bool _review = false; // the middle of the window shows the review grid
+  int _kitImports = 0; // bumps so the preset list reloads after a kit import
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     // Leave typing alone: letters in a text field are text, not shortcuts.
@@ -134,6 +135,55 @@ class _DesktopShellState extends State<DesktopShell> {
       ),
     ),
   );
+
+  void _say(String message) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+
+  Future<void> _exportKit() async {
+    final bytes = await widget.store!.encodeKit('PressFrame kit', credit: session.credit);
+    final saved = await FilePicker.saveFile(
+      fileName: 'publication.pfkit',
+      bytes: bytes,
+      dialogTitle: 'Save the publication kit',
+    );
+    if (saved != null && mounted) _say('Kit saved. Share the file with your staff.');
+  }
+
+  Future<void> _importKit() async {
+    final file = await FilePicker.pickFile(dialogTitle: 'Choose a .pfkit file');
+    final path = file?.path;
+    if (path == null) return;
+    try {
+      final kit = await widget.store!.importKit(path);
+      await widget.library?.reload();
+      if (!mounted) return;
+      // The kit sets how the credit looks; whether it is on stays the user's choice.
+      session.credit = kit.credit.copyWith(enabled: session.credit.enabled);
+      setState(() => _kitImports++);
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Kit imported'),
+          content: SizedBox(
+            width: 420,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                if (kit.presets.isEmpty && kit.templates.isEmpty) const Text('The kit was empty.'),
+                for (final p in kit.presets) Text('Preset: ${p.name}'),
+                for (final t in kit.templates) Text('Template: ${t.name}'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+          ],
+        ),
+      );
+    } on FormatException catch (e) {
+      if (mounted) _say('That kit could not be imported (${e.message}). Nothing was changed.');
+    }
+  }
 
   static const _extensions = ['jpg', 'jpeg', 'png', 'cr3', 'cr2', 'arw'];
 
@@ -256,7 +306,19 @@ class _DesktopShellState extends State<DesktopShell> {
           ),
         ),
         const Spacer(),
-        const TextButton(onPressed: null, child: Text('Kit ▾')),
+        PopupMenuButton<VoidCallback>(
+          tooltip: 'Publication kit',
+          enabled: widget.store != null,
+          onSelected: (run) => run(),
+          itemBuilder: (context) => [
+            PopupMenuItem(value: _exportKit, child: const Text('Export kit')),
+            PopupMenuItem(value: _importKit, child: const Text('Import kit')),
+          ],
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            child: Text('Kit ▾', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
+          ),
+        ),
       ],
     ),
   );
@@ -290,7 +352,9 @@ class _DesktopShellState extends State<DesktopShell> {
     child: SingleChildScrollView(
       child: Column(
         children: [
-          _section('Presets', [PresetPanel(session: session, store: widget.store)]),
+          _section('Presets', [
+            PresetPanel(key: ValueKey(_kitImports), session: session, store: widget.store),
+          ]),
           _section('Light', [
             Align(
               alignment: Alignment.centerLeft,
