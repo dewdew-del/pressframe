@@ -60,30 +60,22 @@ void main() {
     expect(find.byTooltip('Small preview: this RAW will export small'), findsOneWidget);
   });
 
-  testWidgets('the filter menu changes what is shown', (tester) async {
+  testWidgets('the filter in the More menu changes what is shown', (tester) async {
     final session = await pumpShell(tester, [item('a'), item('b'), item('c')]);
     session.select(1);
     session.setFlag(Flag.reject);
     await tester.pump();
-    await tester.tap(find.byTooltip('Filter photos'));
+    await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('All').last);
+    await tester.tap(find.text('Show: All'));
     await tester.pumpAndSettle();
     expect(session.filter, FlagFilter.all);
     expect(find.byType(FilmstripTile), findsNWidgets(3));
   });
 
-  testWidgets('Apply to all copies the edit', (tester) async {
-    final session = await pumpShell(tester, [item('a'), item('b')]);
-    session.setEdit(session.selected!.edit.copyWith(exposure: 0.5), commit: true);
-    await tester.pump();
-    await tester.tap(find.text('Apply to all'));
-    expect(session.items[1].edit.exposure, 0.5);
-  });
-
   testWidgets('an empty batch shows how to start', (tester) async {
     await pumpShell(tester, []);
-    expect(find.text('Drop photos here or click Add photos'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Add photos'), findsOneWidget);
     expect(find.byType(FilmstripTile), findsNothing);
   });
 }

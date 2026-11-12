@@ -18,19 +18,17 @@ import 'shared/template_editor.dart';
 import 'shared/template_panel.dart';
 import 'theme.dart';
 
-enum _Tab { presets, light, color, detail, crop, template }
+enum _Tab { light, color, crop, template }
 
 const _tabNames = {
-  _Tab.presets: 'Presets',
   _Tab.light: 'Light',
   _Tab.color: 'Color',
-  _Tab.detail: 'Detail',
   _Tab.crop: 'Crop',
   _Tab.template: 'Template',
 };
 
-/// Phone layout: photo on top, filmstrip, one tool group, and tool tabs at the bottom for
-/// thumb reach. Review, Export and the template editor open as full pages.
+/// Phone layout: photo on top, filmstrip, one tool group, and four tool tabs at the bottom
+/// for thumb reach. "Next" walks Edit, Review, Export; those two open as full pages.
 class PhoneShell extends StatefulWidget {
   final Session session;
   final Renderer? renderer; // null in widget tests
@@ -53,14 +51,32 @@ class _PhoneShellState extends State<PhoneShell> {
   _Tab _tab = _Tab.light;
   int _kitImports = 0; // bumps so the preset list reloads after a kit import
 
-  Future<T?> _page<T>(String title, Widget body) => Navigator.of(context).push<T>(
-    MaterialPageRoute(
-      builder: (context) => Scaffold(
-        appBar: AppBar(title: Text(title), backgroundColor: panelColor),
-        body: SafeArea(child: body),
+  Widget _nextPill(VoidCallback? onPressed) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    child: FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        minimumSize: const Size(72, 48),
       ),
+      child: const Text('Next →'),
     ),
   );
+
+  Future<T?> _page<T>(String title, Widget body, {VoidCallback? onNext}) =>
+      Navigator.of(context).push<T>(
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            appBar: AppBar(
+              title: Text(title),
+              backgroundColor: panelColor,
+              actions: [if (onNext != null) _nextPill(onNext)],
+            ),
+            body: SafeArea(child: body),
+          ),
+        ),
+      );
 
   void _openReview() => _page<void>(
     'Review',
@@ -77,6 +93,7 @@ class _PhoneShellState extends State<PhoneShell> {
         onOpenInEdit: () => Navigator.of(context).popUntil((route) => route.isFirst),
       ),
     ),
+    onNext: _openExport,
   );
 
   Future<void> _openExport() async {
@@ -118,151 +135,147 @@ class _PhoneShellState extends State<PhoneShell> {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: SafeArea(
-      child: Column(
-        children: [
-          _topBar(),
-          Expanded(
-            child: _tab == _Tab.crop
-                ? CropView(session: session, renderer: widget.renderer, longEdge: actions.previewEdge)
-                : PreviewView(
-                    session: session,
-                    renderer: widget.renderer,
-                    library: widget.library,
-                    longEdge: actions.previewEdge,
-                    onSwipeUp: () => session.setFlag(Flag.pick),
-                    onSwipeDown: () => session.setFlag(Flag.reject),
+      child: ListenableBuilder(
+        listenable: session,
+        builder: (context, _) => Column(
+          children: [
+            _topBar(),
+            if (session.items.isEmpty)
+              Expanded(child: EmptyState(onAdd: () => actions.addPhotos(context)))
+            else ...[
+              Expanded(
+                child: _tab == _Tab.crop
+                    ? CropView(session: session, renderer: widget.renderer, longEdge: actions.previewEdge)
+                    : PreviewView(
+                        session: session,
+                        renderer: widget.renderer,
+                        library: widget.library,
+                        longEdge: actions.previewEdge,
+                        onSwipeUp: () => session.setFlag(Flag.pick),
+                        onSwipeDown: () => session.setFlag(Flag.reject),
+                      ),
+              ),
+              Container(
+                color: panelColor,
+                child: Filmstrip(session: session, thumbnails: actions.thumbnails),
+              ),
+              SizedBox(
+                height: 232,
+                child: Material(
+                  color: panelColor,
+                  child: SingleChildScrollView(
+                    key: PageStorageKey(_tab),
+                    padding: const EdgeInsets.only(top: 8),
+                    child: _tools(),
                   ),
-          ),
-          Container(
-            color: panelColor,
-            child: Filmstrip(session: session, thumbnails: actions.thumbnails),
-          ),
-          SizedBox(
-            height: 232,
-            child: Material(
-              color: panelColor,
-              child: SingleChildScrollView(padding: const EdgeInsets.only(top: 8), child: _tools()),
-            ),
-          ),
-          const Divider(height: 1),
-          _tabs(),
-        ],
+                ),
+              ),
+              const Divider(height: 1),
+              _tabs(),
+            ],
+          ],
+        ),
       ),
     ),
   );
 
-  Widget _topBar() => Container(
-    color: panelColor,
-    height: 48,
-    child: ListenableBuilder(
-      listenable: session,
-      builder: (context, _) {
-        final item = session.selected;
-        final has = item != null;
-        return Row(
-          children: [
-            IconButton(
-              tooltip: 'All photos',
-              onPressed: session.exportable.isEmpty ? null : _openReview,
-              icon: const Icon(Icons.arrow_back),
+  Widget _topBar() {
+    final item = session.selected;
+    final has = item != null;
+    return Container(
+      color: panelColor,
+      height: 48,
+      child: Row(
+        children: [
+          // Edit is the first step, so there is nowhere to go back to from here.
+          const IconButton(tooltip: 'Back', onPressed: null, icon: Icon(Icons.arrow_back)),
+          Expanded(
+            child: Center(
+              child: Text(has ? '${session.selectedIndex + 1} / ${session.items.length}' : 'PressFrame'),
             ),
-            Expanded(
-              child: Center(
-                child: Text(has ? '${session.selectedIndex + 1} / ${session.items.length}' : 'PressFrame'),
+          ),
+          PopupMenuButton<Flag>(
+            tooltip: 'Flag this photo',
+            enabled: has,
+            initialValue: item?.flag,
+            onSelected: session.setFlag,
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: Flag.pick, child: Text('Pick')),
+              PopupMenuItem(value: Flag.reject, child: Text('Reject')),
+              PopupMenuItem(value: Flag.none, child: Text('Clear flag')),
+            ],
+            icon: Icon(
+              switch (item?.flag) {
+                Flag.pick => Icons.flag,
+                Flag.reject => Icons.block,
+                _ => Icons.outlined_flag,
+              },
+              color: switch (item?.flag) {
+                Flag.pick => Colors.greenAccent,
+                Flag.reject => Colors.redAccent,
+                _ => null,
+              },
+            ),
+          ),
+          PopupMenuButton<VoidCallback>(
+            tooltip: 'More',
+            onSelected: (run) => run(),
+            itemBuilder: (context) => [
+              PopupMenuItem(value: () => actions.addPhotos(context), child: const Text('Add photos')),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                enabled: session.canUndo,
+                value: () => actions.undo(context),
+                child: const Text('Undo'),
               ),
-            ),
-            PopupMenuButton<Flag>(
-              tooltip: 'Flag this photo',
-              enabled: has,
-              initialValue: item?.flag,
-              onSelected: session.setFlag,
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: Flag.pick, child: Text('Pick')),
-                PopupMenuItem(value: Flag.reject, child: Text('Reject')),
-                PopupMenuItem(value: Flag.none, child: Text('Clear flag')),
-              ],
-              icon: Icon(
-                switch (item?.flag) {
-                  Flag.pick => Icons.flag,
-                  Flag.reject => Icons.block,
-                  _ => Icons.outlined_flag,
-                },
-                color: switch (item?.flag) {
-                  Flag.pick => Colors.greenAccent,
-                  Flag.reject => Colors.redAccent,
-                  _ => null,
-                },
+              PopupMenuItem(enabled: session.canRedo, value: session.redo, child: const Text('Redo')),
+              PopupMenuItem(enabled: has, value: session.resetEdit, child: const Text('Reset edit')),
+              PopupMenuItem(enabled: has, value: session.copyEdit, child: const Text('Copy edit')),
+              PopupMenuItem(enabled: has, value: session.pasteEdit, child: const Text('Paste edit')),
+              PopupMenuItem(
+                enabled: session.exportable.length > 1,
+                value: session.applyEditToAll,
+                child: const Text('Apply to all'),
               ),
-            ),
-            PopupMenuButton<VoidCallback>(
-              tooltip: 'More',
-              onSelected: (run) => run(),
-              itemBuilder: (context) => [
-                PopupMenuItem(value: () => actions.addPhotos(context), child: const Text('Add photos')),
-                PopupMenuItem(
-                  enabled: session.exportable.isNotEmpty,
-                  value: _openReview,
-                  child: const Text('Review'),
+              const PopupMenuDivider(),
+              for (final e in filterNames.entries)
+                CheckedPopupMenuItem(
+                  checked: session.filter == e.key,
+                  value: () => session.filter = e.key,
+                  child: Text('Show: ${e.value}'),
                 ),
-                PopupMenuItem(
-                  enabled: session.exportable.isNotEmpty,
-                  value: _openExport,
-                  child: const Text('Export'),
-                ),
-                const PopupMenuDivider(),
-                PopupMenuItem(enabled: session.canUndo, value: session.undo, child: const Text('Undo')),
-                PopupMenuItem(enabled: session.canRedo, value: session.redo, child: const Text('Redo')),
-                PopupMenuItem(enabled: has, value: session.resetEdit, child: const Text('Reset edit')),
-                PopupMenuItem(enabled: has, value: session.copyEdit, child: const Text('Copy edit')),
-                PopupMenuItem(enabled: has, value: session.pasteEdit, child: const Text('Paste edit')),
-                PopupMenuItem(
-                  enabled: session.exportable.length > 1,
-                  value: session.applyEditToAll,
-                  child: const Text('Apply to all'),
-                ),
-                const PopupMenuDivider(),
-                for (final e in filterNames.entries)
-                  CheckedPopupMenuItem(
-                    checked: session.filter == e.key,
-                    value: () => session.filter = e.key,
-                    child: Text('Show: ${e.value}'),
-                  ),
-                const PopupMenuDivider(),
-                PopupMenuItem(
-                  enabled: widget.store != null,
-                  value: () => actions.exportKit(context),
-                  child: const Text('Export kit'),
-                ),
-                PopupMenuItem(
-                  enabled: widget.store != null,
-                  value: _importKit,
-                  child: const Text('Import kit'),
-                ),
-              ],
-              icon: const Icon(Icons.more_horiz),
-            ),
-          ],
-        );
-      },
-    ),
-  );
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                enabled: widget.store != null,
+                value: () => actions.exportKit(context),
+                child: const Text('Export kit'),
+              ),
+              PopupMenuItem(
+                enabled: widget.store != null,
+                value: _importKit,
+                child: const Text('Import kit'),
+              ),
+            ],
+            icon: const Icon(Icons.more_vert),
+          ),
+          _nextPill(session.exportable.isEmpty ? null : _openReview),
+        ],
+      ),
+    );
+  }
 
   Widget _tools() => switch (_tab) {
-    _Tab.presets => PresetPanel(key: ValueKey(_kitImports), session: session, store: widget.store),
+    // Presets first, the everyday light sliders, then detail at the bottom.
     _Tab.light => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: OutlinedButton(onPressed: actions.autoFixSelected, child: const Text('Auto fix')),
-          ),
-        ),
-        SliderGroup(session: session, sliders: lightSliders),
+        PresetPanel(key: ValueKey(_kitImports), session: session, store: widget.store),
+        SliderGroup(session: session, name: 'Light', sliders: lightSliders, more: lightMore),
+        const Divider(),
+        SliderGroup(session: session, name: 'Detail', sliders: detailSliders, more: detailMore),
       ],
     ),
-    _Tab.color => SliderGroup(session: session, sliders: colorSliders),
-    _Tab.detail => SliderGroup(session: session, sliders: detailSliders),
+    _Tab.color => SliderGroup(session: session, name: 'Color', sliders: colorSliders, more: colorMore),
     _Tab.crop => CropTools(session: session),
     _Tab.template => TemplatePanel(
       session: session,
@@ -289,11 +302,8 @@ class _PhoneShellState extends State<PhoneShell> {
                 child: Center(
                   child: Text(
                     _tabNames[t]!,
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.fade,
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 14,
                       color: t == _tab ? accentColor : textColor,
                       fontWeight: t == _tab ? FontWeight.w700 : FontWeight.w400,
                       // Underline too, so the active tab does not depend on color alone.

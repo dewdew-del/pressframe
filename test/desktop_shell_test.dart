@@ -4,14 +4,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pressframe/models/batch_item.dart';
 import 'package:pressframe/session.dart';
 import 'package:pressframe/ui/desktop_shell.dart';
+import 'package:pressframe/ui/shared/review_grid.dart';
 import 'package:pressframe/ui/theme.dart';
 
-Future<Session> pumpShell(WidgetTester tester) async {
+Future<Session> pumpShell(WidgetTester tester, {int photos = 1}) async {
   tester.view.physicalSize = const Size(1280, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final session = Session()
-    ..addItems([const BatchItem(path: 'a.jpg', isRaw: false, width: 6000, height: 4000)]);
+    ..addItems([
+      for (var i = 0; i < photos; i++)
+        BatchItem(path: 'p$i.jpg', isRaw: false, width: 6000, height: 4000),
+    ]);
   // No renderer: the preview shows a placeholder, which is the stub for widget tests.
   await tester.pumpWidget(
     MaterialApp(theme: pressFrameTheme, home: DesktopShell(session: session)),
@@ -26,43 +30,79 @@ Future<void> ctrl(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.pump();
 }
 
+const brightness = ValueKey('slider-Brightness');
+
 void main() {
-  testWidgets('shows every slider with a label', (tester) async {
+  testWidgets('shows the everyday sliders; the rest sit under More controls', (tester) async {
     await pumpShell(tester);
-    for (final label in [
-      'Exposure', 'Contrast', 'Highlights', 'Shadows', //
-      'Temperature', 'Tint', 'Saturation', 'Vibrance', 'Sharpen',
-    ]) {
+    for (final label in ['Brightness', 'Contrast', 'Shadows', 'Warmth', 'Saturation', 'Sharpen']) {
       expect(find.text(label), findsOneWidget, reason: label);
       expect(find.byKey(ValueKey('slider-$label')), findsOneWidget, reason: label);
     }
-    expect(find.text('Auto fix'), findsOneWidget);
+    for (final hidden in ['Highlights', 'Whites', 'Blacks', 'Tint', 'Vibrance', 'Texture', 'Clarity']) {
+      expect(find.text(hidden), findsNothing, reason: hidden);
+    }
+    expect(find.text('Auto fix'), findsNothing);
+    expect(find.text('Exposure'), findsNothing);
+    expect(find.text('Temperature'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('more-Light')));
+    await tester.pumpAndSettle();
+    for (final shown in ['Highlights', 'Whites', 'Blacks']) {
+      expect(find.text(shown), findsOneWidget, reason: shown);
+    }
+    expect(find.text('Tint'), findsNothing);
+    expect(tester.getSize(find.byKey(const ValueKey('more-Light'))).height, greaterThanOrEqualTo(44));
   });
 
-  testWidgets('dragging Exposure edits the photo and Ctrl+Z undoes it', (tester) async {
+  testWidgets('values read as whole numbers, Brightness with two decimals', (tester) async {
     final session = await pumpShell(tester);
-    await tester.drag(find.byKey(const ValueKey('slider-Exposure')), const Offset(60, 0));
+    session.setEdit(
+      session.selected!.edit.copyWith(exposure: 0.5, contrast: 0.25, temperature: -0.4),
+      commit: true,
+    );
+    await tester.pump();
+    expect(find.text('+0.50'), findsOneWidget);
+    expect(find.text('+25'), findsOneWidget);
+    expect(find.text('-40'), findsOneWidget);
+  });
+
+  testWidgets('dragging Brightness edits the photo and Ctrl+Z undoes it', (tester) async {
+    final session = await pumpShell(tester);
+    await tester.drag(find.byKey(brightness), const Offset(60, 0));
     await tester.pump();
     expect(session.selected!.edit.exposure, greaterThan(0));
     expect(session.canUndo, true);
 
     await ctrl(tester, LogicalKeyboardKey.keyZ);
     expect(session.selected!.edit.exposure, 0);
+    expect(find.text('Undone. Redo?'), findsOneWidget);
     await ctrl(tester, LogicalKeyboardKey.keyY);
     expect(session.selected!.edit.exposure, greaterThan(0));
     await tester.pump(const Duration(milliseconds: 500)); // let the double-tap timer run out
   });
 
+  testWidgets('the undo toast can redo', (tester) async {
+    final session = await pumpShell(tester);
+    session.setEdit(session.selected!.edit.copyWith(contrast: 0.5), commit: true);
+    await tester.pump();
+    await tester.tap(find.byTooltip('Undo (Ctrl+Z)'));
+    await tester.pumpAndSettle();
+    expect(session.selected!.edit.contrast, 0);
+    await tester.tap(find.text('Redo'));
+    await tester.pump();
+    expect(session.selected!.edit.contrast, 0.5);
+  });
+
   testWidgets('double-tapping a slider resets it', (tester) async {
     final session = await pumpShell(tester);
-    final slider = find.byKey(const ValueKey('slider-Exposure'));
-    await tester.drag(slider, const Offset(60, 0));
+    await tester.drag(find.byKey(brightness), const Offset(60, 0));
     await tester.pump();
     expect(session.selected!.edit.exposure, greaterThan(0));
 
-    await tester.tap(slider);
+    await tester.tap(find.byKey(brightness));
     await tester.pump(const Duration(milliseconds: 60));
-    await tester.tap(slider);
+    await tester.tap(find.byKey(brightness));
     await tester.pumpAndSettle();
     expect(session.selected!.edit.exposure, 0);
   });
@@ -72,6 +112,81 @@ void main() {
     await ctrl(tester, LogicalKeyboardKey.keyC);
     await ctrl(tester, LogicalKeyboardKey.keyV);
     expect(session.selected!.edit.exposure, 0);
+  });
+
+  testWidgets('the step bar and the main button walk Edit, Review, Export', (tester) async {
+    await pumpShell(tester, photos: 2);
+    for (final step in ['1 Edit', '2 Review', '3 Export']) {
+      expect(find.text(step), findsOneWidget, reason: step);
+    }
+    expect(find.text('1 / 2'), findsOneWidget);
+    expect(find.text('Export all'), findsNothing);
+
+    await tester.tap(find.text('Next: Review →'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReviewGrid), findsOneWidget);
+    expect(find.text('Next: Review →'), findsNothing);
+
+    await tester.tap(find.text('Export all'));
+    await tester.pumpAndSettle();
+    expect(find.text('Event name'), findsOneWidget, reason: 'the export sheet is open');
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('1 Edit'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReviewGrid), findsNothing);
+    expect(find.text('Next: Review →'), findsOneWidget);
+  });
+
+  testWidgets('the More menu holds kit, filter and apply to all', (tester) async {
+    final session = await pumpShell(tester, photos: 2);
+    session.setEdit(session.selected!.edit.copyWith(exposure: 0.5), commit: true);
+    await tester.pump();
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    for (final entry in ['Export kit', 'Import kit', 'Show: All', 'Show: Picks', 'Show: Hide rejects', 'Apply to all']) {
+      expect(find.text(entry), findsOneWidget, reason: entry);
+    }
+    await tester.tap(find.text('Apply to all'));
+    await tester.pumpAndSettle();
+    expect(session.items[1].edit.exposure, 0.5);
+
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Show: All'));
+    await tester.pumpAndSettle();
+    expect(session.filter, FlagFilter.all);
+  });
+
+  testWidgets('Before / After on the photo, and holding backslash', (tester) async {
+    final session = await pumpShell(tester);
+    await tester.tap(find.text('Before / After'));
+    expect(session.showBefore.value, true);
+    await tester.tap(find.text('Before / After'));
+    expect(session.showBefore.value, false);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.backslash);
+    expect(session.showBefore.value, true);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.backslash);
+    expect(session.showBefore.value, false);
+    expect(find.text('Scroll to zoom, drag to move.'), findsOneWidget);
+  });
+
+  testWidgets('with no photos the first screen says how to start', (tester) async {
+    await pumpShell(tester, photos: 0);
+    expect(find.widgetWithText(FilledButton, 'Add photos'), findsOneWidget);
+    for (final line in ['1 Edit one photo', '2 Review the batch', '3 Export all']) {
+      expect(find.text(line), findsOneWidget, reason: line);
+    }
+    expect(find.text('Before / After'), findsNothing);
+  });
+
+  testWidgets('every icon button has a tooltip', (tester) async {
+    await pumpShell(tester);
+    for (final b in tester.widgetList<IconButton>(find.byType(IconButton))) {
+      expect(b.tooltip, isNotNull);
+    }
   });
 
   testWidgets('the Help dialog lists the keyboard shortcuts', (tester) async {
@@ -87,13 +202,5 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.f1);
     await tester.pumpAndSettle();
     expect(find.text('Keyboard shortcuts'), findsOneWidget);
-  });
-
-  testWidgets('holding backslash shows the before view', (tester) async {
-    final session = await pumpShell(tester);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.backslash);
-    expect(session.showBefore.value, true);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.backslash);
-    expect(session.showBefore.value, false);
   });
 }

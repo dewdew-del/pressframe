@@ -97,9 +97,7 @@ class _PhotoLoaderState extends State<PhotoLoader> {
     listenable: widget.session,
     builder: (context, _) {
       if (widget.session.selected == null) {
-        return const Center(
-          child: Text('Drop photos here or click Add photos'),
-        );
+        return const SizedBox.expand();
       }
       if (_error != null) {
         return Center(child: Text("Can't open this photo. $_error"));

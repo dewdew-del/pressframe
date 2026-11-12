@@ -4,6 +4,8 @@ const surfaceColor = Color(0xFF1E1E1E);
 const panelColor = Color(0xFF2A2A2A);
 const textColor = Color(0xFFE6E6E6);
 const accentColor = Color(0xFF4C9FFF);
+// Secondary text. Lighter than the first draft so it passes contrast on the panel color.
+const hintColor = Color(0xFFA8A8A8);
 
 /// Dark neutral gray so photo colors read true; one accent color for the active control.
 final ThemeData pressFrameTheme = ThemeData(

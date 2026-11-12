@@ -11,17 +11,17 @@ import 'package:pressframe/ui/theme.dart';
 
 BatchItem item(String name) => BatchItem(path: name, isRaw: false, width: 6000, height: 4000);
 
-Future<Session> pumpApp(WidgetTester tester, Size size) async {
+Future<Session> pumpApp(WidgetTester tester, Size size, {int photos = 3}) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final session = Session()..addItems([item('a'), item('b'), item('c')]);
+  final session = Session()..addItems([for (final n in ['a', 'b', 'c'].take(photos)) item(n)]);
   await tester.pumpWidget(PressFrameApp(session: session));
   return session;
 }
 
 const phone = Size(390, 844);
-const tabs = ['Presets', 'Light', 'Color', 'Detail', 'Crop', 'Template'];
+const tabs = ['Light', 'Color', 'Crop', 'Template'];
 
 void main() {
   testWidgets('the layout follows the window width', (tester) async {
@@ -34,22 +34,40 @@ void main() {
     expect(find.byType(DesktopShell), findsNothing);
   });
 
-  testWidgets('bottom tabs show one tool group at a time', (tester) async {
+  testWidgets('exactly four bottom tabs, one tool group at a time', (tester) async {
     await pumpApp(tester, phone);
     for (final t in tabs) {
       expect(find.byKey(ValueKey('tab-$t')), findsOneWidget, reason: t);
     }
-    expect(find.text('Exposure'), findsOneWidget, reason: 'Light is the first tab shown');
+    expect(find.byKey(const ValueKey('tab-Presets')), findsNothing);
+    expect(find.byKey(const ValueKey('tab-Detail')), findsNothing);
+    expect(find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('tab-')), findsNWidgets(4));
+
+    // Light is shown first: presets on top, then light, then detail at the bottom.
+    expect(find.text('Brightness'), findsOneWidget);
+    expect(find.text('Indoor gym'), findsOneWidget);
+    expect(find.text('Sharpen'), findsOneWidget);
+    expect(find.text('Auto fix'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('tab-Color')));
     await tester.pumpAndSettle();
-    expect(find.text('Temperature'), findsOneWidget);
-    expect(find.text('Exposure'), findsNothing);
+    expect(find.text('Warmth'), findsOneWidget);
+    expect(find.text('Brightness'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('tab-Crop')));
     await tester.pumpAndSettle();
     expect(find.byType(CropView), findsOneWidget);
     expect(find.text('Rotate right'), findsOneWidget);
+  });
+
+  testWidgets('tabs are at least 44 px tall with 14 px text', (tester) async {
+    await pumpApp(tester, phone);
+    for (final t in tabs) {
+      final tab = find.byKey(ValueKey('tab-$t'));
+      expect(tester.getSize(tab).height, greaterThanOrEqualTo(44), reason: t);
+      final text = tester.widget<Text>(find.descendant(of: tab, matching: find.text(t)));
+      expect(text.style!.fontSize, 14, reason: t);
+    }
   });
 
   testWidgets('everything tappable is at least 48 by 48', (tester) async {
@@ -99,17 +117,34 @@ void main() {
     expect(session.selectedIndex, 1, reason: 'moves on to the next photo');
   });
 
-  testWidgets('the menu opens Review as a full page', (tester) async {
+  testWidgets('the menu has import, kit, filter and apply to all, not review or export', (tester) async {
     await pumpApp(tester, phone);
     await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
-    for (final entry in ['Add photos', 'Review', 'Export', 'Export kit', 'Import kit', 'Apply to all']) {
+    for (final entry in ['Add photos', 'Export kit', 'Import kit', 'Show: All', 'Apply to all']) {
       expect(find.text(entry), findsOneWidget, reason: entry);
     }
-    await tester.tap(find.text('Review'));
+    expect(find.text('Review'), findsNothing);
+    expect(find.text('Export'), findsNothing);
+  });
+
+  testWidgets('Next goes from Edit to Review to Export', (tester) async {
+    await pumpApp(tester, phone);
+    await tester.tap(find.text('Next →'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('review-a')), findsOneWidget);
-    expect(find.byType(PhoneShell, skipOffstage: true), findsNothing);
+
+    await tester.tap(find.text('Next →'));
+    await tester.pumpAndSettle();
+    expect(find.text('Event name'), findsOneWidget, reason: 'the export page is open');
+  });
+
+  testWidgets('with no photos the first screen says how to start', (tester) async {
+    await pumpApp(tester, phone, photos: 0);
+    expect(find.widgetWithText(FilledButton, 'Add photos'), findsOneWidget);
+    for (final line in ['1 Edit one photo', '2 Review the batch', '3 Export all']) {
+      expect(find.text(line), findsOneWidget, reason: line);
+    }
   });
 
   testWidgets('a denied gallery permission is explained, with a way forward', (tester) async {

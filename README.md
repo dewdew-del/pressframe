@@ -18,8 +18,8 @@ PressFrame puts the whole job in one place. You import the event, fix light and 
 
 - **Import** JPEG, PNG and RAW (`.cr3`, `.cr2`, `.arw`) by file picker, folder, or drag and drop on Windows. RAW files open through the preview JPEG stored inside them.
 - **Pick and reject.** Rejected photos are hidden and never exported. Nothing is deleted from disk.
-- **Edit** exposure, contrast, highlights, shadows, temperature, tint, saturation, vibrance and sharpen. Crop, rotate and straighten. Undo and redo per photo, before/after, copy and paste an edit, apply to all.
-- **Auto fix** sets exposure, contrast, temperature and tint from the photo. It only moves the sliders, so you can fine-tune or undo it.
+- **Edit** with a few plain sliders up front (Brightness, Contrast, Shadows, Warmth, Saturation, Sharpen) and the rest under "More controls" (Highlights, Whites, Blacks, Tint, Vibrance, Texture, Clarity). Crop, rotate and straighten. Undo and redo per photo, before/after, copy and paste an edit, apply to all.
+- **Three steps**: Edit one photo, Review the batch, Export all. One main button always says what comes next.
 - **Presets**: three built in (Indoor gym, Outdoor sun, Stage lights), plus your own. Share one as a `.pfpreset` file.
 - **Branding templates**: build one in the app (gradient band on the top, bottom or both, plus logos you drag into place), or import a transparent PNG frame made in Canva or Photoshop.
 - **Output shapes**: Original, 1:1, 4:5, 3:2, 16:9, 2:3 and 9:16, chosen separately for landscape and portrait photos, with per-photo override.
@@ -40,7 +40,7 @@ Coming soon on GitHub Releases:
 ## Good to know
 
 - RAW files are not developed from sensor data. PressFrame uses the JPEG preview the camera stores inside the RAW file. Canon files normally store a full-size preview. Some Sony bodies store only a small one (about 1616 px); those files show a warning, and shooting RAW+JPEG avoids the problem.
-- Not in this version: curves, HSL, masks, healing, captions, custom fonts, PNG or TIFF export, accounts, cloud, iOS.
+- Not in this version: auto fix, curves, HSL, masks, healing, captions, custom fonts, PNG or TIFF export, accounts, cloud, iOS.
 
 ## Keyboard shortcuts (Windows)
 

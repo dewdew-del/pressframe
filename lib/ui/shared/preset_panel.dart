@@ -84,29 +84,7 @@ class _PresetPanelState extends State<PresetPanel> {
                 for (final p in builtInPresets)
                   ActionChip(label: Text(p.name), onPressed: on ? () => _apply(p) : null),
                 for (final p in _saved)
-                  InputChip(
-                    label: Text(p.name),
-                    onPressed: on ? () => _apply(p) : null,
-                    deleteIcon: const Icon(Icons.more_vert, size: 18),
-                    deleteButtonTooltipMessage: 'Export or delete "${p.name}"',
-                    onDeleted: () async {
-                      final box = context.findRenderObject()! as RenderBox;
-                      final at = box.localToGlobal(box.size.center(Offset.zero));
-                      final choice = await showMenu<String>(
-                        context: context,
-                        position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
-                        items: const [
-                          PopupMenuItem(value: 'export', child: Text('Export')),
-                          PopupMenuItem(value: 'delete', child: Text('Delete')),
-                        ],
-                      );
-                      if (choice == 'export') await _export(p);
-                      if (choice == 'delete') {
-                        await widget.store?.deletePreset(p.name);
-                        await _reload();
-                      }
-                    },
-                  ),
+                  ActionChip(label: Text(p.name), onPressed: on ? () => _apply(p) : null),
               ],
             ),
             const SizedBox(height: 8),
@@ -117,9 +95,27 @@ class _PresetPanelState extends State<PresetPanel> {
                   onPressed: on && widget.store != null ? _saveCurrent : null,
                   child: const Text('Save current'),
                 ),
-                TextButton(
-                  onPressed: widget.store != null ? _import : null,
-                  child: const Text('Import preset'),
+                PopupMenuButton<VoidCallback>(
+                  tooltip: 'More preset actions',
+                  onSelected: (run) => run(),
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      enabled: widget.store != null,
+                      value: _import,
+                      child: const Text('Import preset'),
+                    ),
+                    for (final p in _saved) ...[
+                      PopupMenuItem(value: () => _export(p), child: Text('Export "${p.name}"')),
+                      PopupMenuItem(
+                        value: () async {
+                          await widget.store?.deletePreset(p.name);
+                          await _reload();
+                        },
+                        child: Text('Delete "${p.name}"'),
+                      ),
+                    ],
+                  ],
+                  icon: const Icon(Icons.more_vert),
                 ),
               ],
             ),

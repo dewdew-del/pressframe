@@ -113,5 +113,9 @@ void main() {
     session.undo();
     expect(session.selected!.edit, EditParams.neutral);
     expect(find.text('Save current'), findsOneWidget);
+    expect(find.text('Import preset'), findsNothing);
+    await tester.tap(find.byTooltip('More preset actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Import preset'), findsOneWidget);
   });
 }

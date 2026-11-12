@@ -7,8 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../../engine/auto_fix.dart';
-import '../../engine/decode.dart';
 import '../../engine/renderer.dart';
 import '../../export/exporter.dart';
 import '../../models/template.dart';
@@ -17,6 +15,7 @@ import '../../storage/app_store.dart';
 import '../../storage/template_library.dart';
 import 'filmstrip.dart' show ThumbnailLoader;
 import 'slider_group.dart';
+import '../theme.dart';
 
 const filterNames = {
   FlagFilter.all: 'All',
@@ -66,21 +65,19 @@ class AppActions {
   void openAppSettings() =>
       const MethodChannel('pressframe/settings').invokeMethod<void>('open').ignore();
 
-  /// Reads a small copy of the selected photo and moves the sliders to a sensible start.
-  Future<void> autoFixSelected() async {
-    final item = session.selected;
-    if (item == null) return;
-    final ui.Image small;
-    try {
-      small = await decodeImage(item.path, maxLongEdge: 256);
-    } on DecodeFailure {
-      return; // the preview already shows why this photo cannot be opened
-    }
-    final data = await small.toByteData(format: ui.ImageByteFormat.rawRgba);
-    final (w, h) = (small.width, small.height);
-    small.dispose();
-    if (data == null || session.selected?.path != item.path) return;
-    session.setEdit(autoFix(data.buffer.asUint8List(), w, h, session.selected!.edit), commit: true);
+  /// Undo with a short toast that offers to redo.
+  void undo(BuildContext context) {
+    if (!session.canUndo) return;
+    session.undo();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Undone. Redo?'),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(label: 'Redo', onPressed: session.redo),
+        ),
+      );
   }
 
   static void say(BuildContext context, String message) =>
@@ -180,6 +177,53 @@ class AppActions {
       return false;
     }
   }
+}
+
+/// The first screen, before any photo is added: one big way in and the three steps.
+class EmptyState extends StatelessWidget {
+  final VoidCallback onAdd;
+  final bool canDrop; // laptop: photos can also be dropped on the window
+  const EmptyState({super.key, required this.onAdd, this.canDrop = false});
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            constraints: const BoxConstraints(maxWidth: 420),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFF5A5A5A), width: 1.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.add_photo_alternate_outlined, size: 44),
+                const SizedBox(height: 12),
+                const Text('Start with your event photos', style: TextStyle(fontSize: 16)),
+                const SizedBox(height: 16),
+                FilledButton(onPressed: onAdd, child: const Text('Add photos')),
+                if (canDrop) ...[
+                  const SizedBox(height: 12),
+                  const Text('or drop photos or a folder here', style: TextStyle(fontSize: 13, color: hintColor)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          for (final step in const ['1 Edit one photo', '2 Review the batch', '3 Export all'])
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Text(step, style: const TextStyle(color: hintColor)),
+            ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Rotate, straighten and reset, shared by both layouts. [cropping] and [onCropping] add
