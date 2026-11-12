@@ -189,10 +189,7 @@ class Session extends ChangeNotifier {
     final start = _dragStart;
     if (start == null) return;
     _dragStart = null;
-    final now = _items[_selected];
-    if (start.edit != now.edit || start.crop != now.crop || start.straighten != now.straighten) {
-      _push(start);
-    }
+    if (!identical(start, _items[_selected])) _push(start);
   }
 
   /// commit=false while a slider is being dragged, true when it is released.

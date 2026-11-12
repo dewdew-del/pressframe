@@ -20,6 +20,7 @@ import 'shared/export_sheet.dart';
 import 'shared/filmstrip.dart';
 import 'shared/preset_panel.dart';
 import 'shared/preview_view.dart';
+import 'shared/review_grid.dart';
 import 'shared/slider_group.dart';
 import 'shared/template_editor.dart';
 import 'shared/template_panel.dart';
@@ -61,6 +62,7 @@ class _DesktopShellState extends State<DesktopShell> {
   Session get session => widget.session;
   bool _cropping = false; // the photo area shows the crop tool instead of the preview
   bool _dropping = false; // files are being dragged over the window
+  bool _review = false; // the middle of the window shows the review grid
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     // Leave typing alone: letters in a text field are text, not shortcuts.
@@ -184,7 +186,7 @@ class _DesktopShellState extends State<DesktopShell> {
             _topBar(),
             const Divider(height: 1),
             Expanded(
-              child: Row(
+              child: _review ? _reviewGrid() : Row(
                 children: [
                   Expanded(
                     child: DecoratedBox(
@@ -237,8 +239,15 @@ class _DesktopShellState extends State<DesktopShell> {
             child: Text('Import ▾', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
           ),
         ),
-        TextButton(onPressed: () {}, child: const Text('Edit')),
-        const TextButton(onPressed: null, child: Text('Review')),
+        _modeButton('Edit', !_review, () => setState(() => _review = false)),
+        ListenableBuilder(
+          listenable: session,
+          builder: (context, _) => _modeButton(
+            'Review',
+            _review,
+            session.exportable.isEmpty ? null : () => setState(() => _review = true),
+          ),
+        ),
         ListenableBuilder(
           listenable: session,
           builder: (context, _) => TextButton(
@@ -249,6 +258,30 @@ class _DesktopShellState extends State<DesktopShell> {
         const Spacer(),
         const TextButton(onPressed: null, child: Text('Kit ▾')),
       ],
+    ),
+  );
+
+  // The current mode is underlined so it reads without relying on color alone.
+  Widget _modeButton(String label, bool active, VoidCallback? onPressed) => TextButton(
+    onPressed: onPressed,
+    child: Text(
+      label,
+      style: TextStyle(
+        decoration: active ? TextDecoration.underline : null,
+        fontWeight: active ? FontWeight.w700 : null,
+      ),
+    ),
+  );
+
+  Widget _reviewGrid() => ListenableBuilder(
+    listenable: Listenable.merge([widget.library]),
+    builder: (context, _) => ReviewGrid(
+      session: session,
+      renderer: widget.renderer,
+      templates: widget.library?.templates ?? const [],
+      assets: widget.library?.assets ?? const {},
+      thumbnails: widget.store?.thumbnailIf,
+      onOpenInEdit: () => setState(() => _review = false),
     ),
   );
 
