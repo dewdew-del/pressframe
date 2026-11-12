@@ -19,6 +19,10 @@ void main() {
     saturation: -0.6,
     vibrance: 0.7,
     sharpen: 0.8,
+    whites: 0.25,
+    blacks: -0.35,
+    texture: 0.45,
+    clarity: -0.55,
   );
 
   test('EditParams survives a JSON round trip', () {
@@ -27,6 +31,15 @@ void main() {
 
   test('EditParams.fromJson with missing keys is neutral', () {
     expect(EditParams.fromJson({}), EditParams.neutral);
+  });
+
+  test('the four newer sliders round-trip and old files without them read as 0', () {
+    final back = EditParams.fromJson(full.toJson());
+    expect((back.whites, back.blacks, back.texture, back.clarity), (0.25, -0.35, 0.45, -0.55));
+    final old = EditParams.fromJson({'exposure': 0.5, 'sharpen': 0.2});
+    expect((old.whites, old.blacks, old.texture, old.clarity), (0.0, 0.0, 0.0, 0.0));
+    expect(EditParams.fromJson({'clarity': 9}).clarity, 1.0);
+    expect(full.copyWith(whites: 0), isNot(full));
   });
 
   test('EditParams.fromJson clamps values to their range', () {

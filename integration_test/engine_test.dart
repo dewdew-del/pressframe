@@ -134,6 +134,10 @@ const strong = EditParams(
   saturation: 0.2,
   vibrance: 0.3,
   sharpen: 0.5,
+  whites: 0.3,
+  blacks: -0.3,
+  texture: 0.4,
+  clarity: 0.4,
 );
 
 void main() {
@@ -168,6 +172,27 @@ void main() {
       job(source, 768, 512, edit: const EditParams(exposure: 1)),
     );
     expect(meanLuma(brighter), greaterThan(meanLuma(neutral) + 10));
+  });
+
+  testWidgets('whites, blacks, texture and clarity each change the picture', (tester) async {
+    final neutral = await renderer.renderRgba(job(source, 768, 512));
+    for (final (name, edit) in const [
+      ('whites', EditParams(whites: 1)),
+      ('blacks', EditParams(blacks: -1)),
+      ('texture', EditParams(texture: 1)),
+      ('clarity', EditParams(clarity: 1)),
+    ]) {
+      final out = await renderer.renderRgba(job(source, 768, 512, edit: edit));
+      expect(meanDiff(out, neutral), greaterThan(0.05), reason: name);
+    }
+    final whites = await renderer.renderRgba(
+      job(source, 768, 512, edit: const EditParams(whites: 1)),
+    );
+    final blacks = await renderer.renderRgba(
+      job(source, 768, 512, edit: const EditParams(blacks: -1)),
+    );
+    expect(meanLuma(whites), greaterThan(meanLuma(neutral)), reason: 'whites up brightens');
+    expect(meanLuma(blacks), lessThan(meanLuma(neutral)), reason: 'blacks down darkens');
   });
 
   testWidgets('output is the right way up', (tester) async {

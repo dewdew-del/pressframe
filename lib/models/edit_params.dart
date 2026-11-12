@@ -4,6 +4,7 @@ class EditParams {
   final double contrast, highlights, shadows; // -1..1
   final double temperature, tint, saturation, vibrance; // -1..1
   final double sharpen; // 0..1
+  final double whites, blacks, texture, clarity; // -1..1
 
   const EditParams({
     this.exposure = 0,
@@ -15,6 +16,10 @@ class EditParams {
     this.saturation = 0,
     this.vibrance = 0,
     this.sharpen = 0,
+    this.whites = 0,
+    this.blacks = 0,
+    this.texture = 0,
+    this.clarity = 0,
   });
 
   static const neutral = EditParams();
@@ -29,6 +34,10 @@ class EditParams {
     double? saturation,
     double? vibrance,
     double? sharpen,
+    double? whites,
+    double? blacks,
+    double? texture,
+    double? clarity,
   }) => EditParams(
     exposure: exposure ?? this.exposure,
     contrast: contrast ?? this.contrast,
@@ -39,11 +48,16 @@ class EditParams {
     saturation: saturation ?? this.saturation,
     vibrance: vibrance ?? this.vibrance,
     sharpen: sharpen ?? this.sharpen,
+    whites: whites ?? this.whites,
+    blacks: blacks ?? this.blacks,
+    texture: texture ?? this.texture,
+    clarity: clarity ?? this.clarity,
   );
 
   List<double> get _values => [
     exposure, contrast, highlights, shadows,
     temperature, tint, saturation, vibrance, sharpen,
+    whites, blacks, texture, clarity,
   ];
 
   Map<String, dynamic> toJson() => {
@@ -56,6 +70,10 @@ class EditParams {
     'saturation': saturation,
     'vibrance': vibrance,
     'sharpen': sharpen,
+    'whites': whites,
+    'blacks': blacks,
+    'texture': texture,
+    'clarity': clarity,
   };
 
   /// Missing or non-numeric keys become 0; values are clamped to their range,
@@ -76,6 +94,10 @@ class EditParams {
       saturation: v('saturation', -1, 1),
       vibrance: v('vibrance', -1, 1),
       sharpen: v('sharpen', 0, 1),
+      whites: v('whites', -1, 1),
+      blacks: v('blacks', -1, 1),
+      texture: v('texture', -1, 1),
+      clarity: v('clarity', -1, 1),
     );
   }
 

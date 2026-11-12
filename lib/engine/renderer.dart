@@ -86,7 +86,8 @@ class Renderer {
       m[1], m[5], m[13], reach(m[1], m[5]),
       e.exposure, e.contrast, e.highlights, e.shadows,
       e.temperature, e.tint, e.saturation, e.vibrance,
-      e.sharpen, 0.0, 0.0, 0.0,
+      e.sharpen, e.texture, e.clarity, 0.0,
+      e.whites, e.blacks, 0.0, 0.0,
     ];
     for (var i = 0; i < values.length; i++) {
       _shader.setFloat(i, values[i]);
