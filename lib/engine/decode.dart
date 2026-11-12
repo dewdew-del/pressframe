@@ -166,11 +166,27 @@ int? rawOrientation(Uint8List raw) {
   return null;
 }
 
-typedef _Source = ({Uint8List bytes, int width, int height, bool isRaw, int rotate});
+typedef _Source = ({Uint8List bytes, int width, int height, bool isRaw});
+
+/// A copy of [jpeg] with an EXIF block in front that carries [orientation], so the image
+/// codec rotates it while decoding. Rotating afterwards with a Canvas is not an option: on
+/// Impeller (Android) a shader samples such a drawn image upside down.
+Uint8List _withOrientation(Uint8List jpeg, int orientation) {
+  const app1 = [
+    0xFF, 0xE1, 0x00, 0x22, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, // APP1, length 34, "Exif"
+    0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, // TIFF, one IFD entry
+    0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, // orientation, SHORT, count 1
+  ];
+  return (BytesBuilder(copy: false)
+        ..add(const [0xFF, 0xD8])
+        ..add(app1)
+        ..add([orientation, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        ..add(Uint8List.sublistView(jpeg, 2)))
+      .takeBytes();
+}
 
 /// Reads and checks a file without decoding pixels. width/height are upright.
-/// `rotate` is the orientation this code must apply itself (RAW container); for plain JPEG
-/// the image codec applies EXIF rotation, so it is 1.
+/// The returned bytes are a JPEG or PNG whose own EXIF tells the codec how to turn it.
 Future<_Source> _load(String path) async {
   final Uint8List bytes;
   try {
@@ -188,11 +204,10 @@ Future<_Source> _load(String path) async {
     final o = own ? e.orientation : (rawOrientation(bytes) ?? 1);
     final sw = swaps(o);
     return (
-      bytes: e.jpeg.bytes,
+      bytes: own || o == 1 ? e.jpeg.bytes : _withOrientation(e.jpeg.bytes, o),
       width: sw ? e.jpeg.height : e.jpeg.width,
       height: sw ? e.jpeg.width : e.jpeg.height,
       isRaw: true,
-      rotate: own ? 1 : o,
     );
   }
 
@@ -205,7 +220,6 @@ Future<_Source> _load(String path) async {
       width: sw ? j.height : j.width,
       height: sw ? j.width : j.height,
       isRaw: false,
-      rotate: 1,
     );
   }
 
@@ -221,7 +235,7 @@ Future<_Source> _load(String path) async {
     if (w == 0 || h == 0 || !complete) {
       throw DecodeFailure(path, 'The file is damaged or incomplete');
     }
-    return (bytes: bytes, width: w, height: h, isRaw: false, rotate: 1);
+    return (bytes: bytes, width: w, height: h, isRaw: false);
   }
 
   throw DecodeFailure(path, 'Not a JPEG, PNG or supported RAW file');
@@ -256,46 +270,12 @@ Future<ui.Image> decodeImage(String path, {required int maxLongEdge}) async {
         );
       },
     );
-    final ui.Image image;
     try {
-      image = (await codec.getNextFrame()).image;
+      return (await codec.getNextFrame()).image;
     } finally {
       codec.dispose();
     }
-    return s.rotate == 1 ? image : await _rotated(image, s.rotate);
   } catch (e) {
     throw DecodeFailure(path, 'The file could not be decoded');
-  }
-}
-
-/// Applies EXIF orientation 3, 6 or 8 and disposes [src].
-// shortcut: mirrored orientations (2, 4, 5, 7) are shown unmirrored because cameras do not
-// write them, upgrade if a scanner or edited file needs them.
-Future<ui.Image> _rotated(ui.Image src, int orientation) async {
-  final w = src.width.toDouble(), h = src.height.toDouble();
-  final quarter = orientation == 6 || orientation == 5 || orientation == 8 || orientation == 7;
-  final recorder = ui.PictureRecorder();
-  final canvas = ui.Canvas(recorder);
-  switch (orientation) {
-    case 3 || 4:
-      canvas
-        ..translate(w, h)
-        ..rotate(math.pi);
-    case 6 || 5:
-      canvas
-        ..translate(h, 0)
-        ..rotate(math.pi / 2);
-    case 8 || 7:
-      canvas
-        ..translate(0, w)
-        ..rotate(-math.pi / 2);
-  }
-  canvas.drawImage(src, ui.Offset.zero, ui.Paint());
-  final picture = recorder.endRecording();
-  try {
-    return await picture.toImage(quarter ? src.height : src.width, quarter ? src.width : src.height);
-  } finally {
-    picture.dispose();
-    src.dispose();
   }
 }

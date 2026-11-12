@@ -11,6 +11,8 @@ import '../models/template.dart';
 /// Everything needed to draw one photo. The preview and the exporter build the same job at
 /// different sizes, which is what keeps them identical.
 class RenderJob {
+  /// Must come from the image codec or from pixels (decodeImage does this), never from
+  /// Picture.toImage: on Impeller (Android) the shader samples drawn images upside down.
   final ui.Image source;
   final EditParams edit;
   final int quarterTurns;

@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:integration_test/integration_test.dart';
+import 'package:pressframe/engine/decode.dart';
 import 'package:pressframe/engine/renderer.dart';
 import 'package:pressframe/models/edit_params.dart';
 import 'package:pressframe/models/template.dart';
@@ -13,7 +17,17 @@ const _red = Color(0xFFE00000), _green = Color(0xFF00C000);
 const _blue = Color(0xFF0000E0), _yellow = Color(0xFFE0E000);
 
 /// Smooth gradients, hard-edged blocks, and a different solid color in each corner.
-Future<ui.Image> syntheticImage() {
+/// Re-uploads a drawn image as an ordinary texture, like a decoded photo.
+/// On Impeller (Android) a shader samples a drawn image (Picture.toImage) upside down, so
+/// shader sources must always come from the codec or from pixels. See RenderJob.source.
+Future<ui.Image> regular(ui.Image drawn) async {
+  final pixels = await rgba(drawn);
+  final done = Completer<ui.Image>();
+  ui.decodeImageFromPixels(pixels, drawn.width, drawn.height, ui.PixelFormat.rgba8888, done.complete);
+  return done.future;
+}
+
+Future<ui.Image> syntheticImage() async {
   final rec = ui.PictureRecorder();
   final c = Canvas(rec);
   const full = Rect.fromLTWH(0, 0, 3000, 2000);
@@ -44,10 +58,10 @@ Future<ui.Image> syntheticImage() {
   c.drawRect(const Rect.fromLTWH(2700, 0, 300, 300), Paint()..color = _green); // top right
   c.drawRect(const Rect.fromLTWH(0, 1700, 300, 300), Paint()..color = _blue); // bottom left
   c.drawRect(const Rect.fromLTWH(2700, 1700, 300, 300), Paint()..color = _yellow); // bottom right
-  return rec.endRecording().toImage(_w, _h);
+  return regular(await rec.endRecording().toImage(_w, _h));
 }
 
-Future<ui.Image> scaled(ui.Image src, int w, int h) {
+Future<ui.Image> scaled(ui.Image src, int w, int h) async {
   final rec = ui.PictureRecorder();
   Canvas(rec).drawImageRect(
     src,
@@ -55,7 +69,7 @@ Future<ui.Image> scaled(ui.Image src, int w, int h) {
     Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
     Paint()..filterQuality = FilterQuality.medium,
   );
-  return rec.endRecording().toImage(w, h);
+  return regular(await rec.endRecording().toImage(w, h));
 }
 
 Future<Uint8List> rgba(ui.Image image) async =>
@@ -84,9 +98,9 @@ Color pixel(Uint8List p, int width, int x, int y) {
   return Color.fromARGB(255, p[i], p[i + 1], p[i + 2]);
 }
 
-void expectColor(Color actual, Color expected) {
+void expectColor(Color actual, Color expected, [double tolerance = 6]) {
   for (final (a, e) in [(actual.r, expected.r), (actual.g, expected.g), (actual.b, expected.b)]) {
-    expect(a * 255, closeTo(e * 255, 6), reason: '$actual vs $expected');
+    expect(a * 255, closeTo(e * 255, tolerance), reason: '$actual vs $expected');
   }
 }
 
@@ -177,6 +191,32 @@ void main() {
       job(source, 300, 200, crop: const Rect.fromLTWH(0.5, 0, 0.5, 0.5)),
     );
     expectColor(pixel(out, 300, 294, 5), _green); // top right quadrant keeps its corner
+  });
+
+  // Review Focus 1 on the real GPU: a RAW whose container says "rotate 90" must come out
+  // upright after going through the shader, not mirrored or upside down.
+  testWidgets('sideways RAW renders upright through the shader', (tester) async {
+    final im = img.Image(width: 64, height: 48);
+    for (final p in im) {
+      final c = p.y < 24 ? (p.x < 32 ? _red : _green) : (p.x < 32 ? _blue : _yellow);
+      p.setRgb(c.r * 255, c.g * 255, c.b * 255);
+    }
+    final tiff = [
+      0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, //
+      0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    final dir = Directory.systemTemp.createTempSync('pf_engine');
+    final file = File('${dir.path}/fake.cr2')
+      ..writeAsBytesSync([...tiff, ...List.filled(40, 0x11), ...img.encodeJpg(im, quality: 100)]);
+    final image = await decodeImage(file.path, maxLongEdge: 2048);
+    expect((image.width, image.height), (48, 64));
+    final out = await renderer.renderRgba(job(image, 48, 64));
+    dir.deleteSync(recursive: true);
+    // Stored corners: red green / blue yellow. Rotated 90 degrees clockwise:
+    expectColor(pixel(out, 48, 6, 6), _blue, 40);
+    expectColor(pixel(out, 48, 41, 6), _red, 40);
+    expectColor(pixel(out, 48, 41, 57), _green, 40);
+    expectColor(pixel(out, 48, 6, 57), _yellow, 40);
   });
 
   // The preview paints through the widget tree, which scales and offsets the canvas.
