@@ -17,6 +17,7 @@ import '../storage/app_store.dart';
 import 'shared/crop_view.dart';
 import 'shared/export_sheet.dart';
 import 'shared/filmstrip.dart';
+import 'shared/preset_panel.dart';
 import 'shared/preview_view.dart';
 import 'shared/slider_group.dart';
 import 'theme.dart';
@@ -235,7 +236,7 @@ class _DesktopShellState extends State<DesktopShell> {
     child: SingleChildScrollView(
       child: Column(
         children: [
-          _section('Presets', const [_Later('Presets arrive in a later step.')], open: false),
+          _section('Presets', [PresetPanel(session: session, store: widget.store)]),
           _section('Light', [
             Align(
               alignment: Alignment.centerLeft,
