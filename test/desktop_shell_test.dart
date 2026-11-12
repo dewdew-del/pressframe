@@ -74,6 +74,21 @@ void main() {
     expect(session.selected!.edit.exposure, 0);
   });
 
+  testWidgets('the Help dialog lists the keyboard shortcuts', (tester) async {
+    await pumpShell(tester);
+    await tester.tap(find.byTooltip('Keyboard shortcuts (F1)'));
+    await tester.pumpAndSettle();
+    for (final key in ['Ctrl+Z', 'Ctrl+Y', 'Ctrl+C', 'Ctrl+V', 'Backslash (hold)', 'P', 'X', 'U', 'Left / Right']) {
+      expect(find.text(key), findsOneWidget, reason: key);
+    }
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.f1);
+    await tester.pumpAndSettle();
+    expect(find.text('Keyboard shortcuts'), findsOneWidget);
+  });
+
   testWidgets('holding backslash shows the before view', (tester) async {
     final session = await pumpShell(tester);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.backslash);

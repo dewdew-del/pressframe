@@ -51,6 +51,10 @@ class _DesktopShellState extends State<DesktopShell> {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.f1 && event is KeyDownEvent) {
+      _help();
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.backslash) {
       session.showBefore.value = event is! KeyUpEvent;
       return KeyEventResult.handled;
@@ -98,6 +102,53 @@ class _DesktopShellState extends State<DesktopShell> {
         width: 520,
         child: ExportSheet(session: session, specs: actions.specs, exporter: actions.exporter()),
       ),
+    ),
+  );
+
+  static const _shortcuts = {
+    'Left / Right': 'Previous / next photo',
+    'P': 'Pick the photo',
+    'X': 'Reject the photo (it will not be exported)',
+    'U': 'Clear the flag',
+    'Backslash (hold)': 'Show the photo before editing',
+    'Ctrl+Z': 'Undo',
+    'Ctrl+Y': 'Redo',
+    'Ctrl+C': 'Copy the edit',
+    'Ctrl+V': 'Paste the edit',
+    'Double-click a slider': 'Reset it',
+    'Mouse wheel on the photo': 'Zoom (drag to move around)',
+    'Tab': 'Move between controls',
+    'F1': 'This list',
+  };
+
+  void _help() => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Keyboard shortcuts'),
+      content: SizedBox(
+        width: 460,
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final e in _shortcuts.entries)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 200,
+                      child: Text(e.key, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                    Expanded(child: Text(e.value)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+      ],
     ),
   );
 
@@ -207,6 +258,11 @@ class _DesktopShellState extends State<DesktopShell> {
           'Export kit': () => actions.exportKit(context),
           'Import kit': _importKit,
         }, enabled: widget.store != null),
+        IconButton(
+          tooltip: 'Keyboard shortcuts (F1)',
+          onPressed: _help,
+          icon: const Icon(Icons.help_outline),
+        ),
       ],
     ),
   );

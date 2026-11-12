@@ -18,6 +18,8 @@ final ThemeData pressFrameTheme = ThemeData(
   scaffoldBackgroundColor: surfaceColor,
   canvasColor: panelColor,
   dividerColor: const Color(0xFF3A3A3A),
+  // A clearly visible ring/fill on whatever the Tab key lands on.
+  focusColor: const Color(0x664C9FFF),
   sliderTheme: const SliderThemeData(
     trackHeight: 2,
     // 24 px radius makes every slider 48 px tall: a full-size touch target.
