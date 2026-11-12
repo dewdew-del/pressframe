@@ -78,11 +78,13 @@ class Renderer {
   void paintJob(Canvas canvas, RenderJob job) {
     final m = sourceMatrix(job).storage;
     final e = job.edit;
-    // Sharpen samples a fixed fraction of the picture, so it looks the same at any size.
+    // Sharpen reaches 1/2048 of the output's long edge, measured in source coordinates,
+    // so it looks the same whatever the source and output sizes are.
     final step = math.max(job.outputSize.width, job.outputSize.height) / 2048.0;
+    double reach(double a, double b) => step * math.sqrt(a * a + b * b);
     final values = [
-      m[0], m[4], m[12], step / job.source.width,
-      m[1], m[5], m[13], step / job.source.height,
+      m[0], m[4], m[12], reach(m[0], m[4]),
+      m[1], m[5], m[13], reach(m[1], m[5]),
       e.exposure, e.contrast, e.highlights, e.shadows,
       e.temperature, e.tint, e.saturation, e.vibrance,
       e.sharpen, 0.0, 0.0, 0.0,
