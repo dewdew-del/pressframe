@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,8 +13,10 @@ import '../export/exporter.dart';
 import '../models/batch_item.dart';
 import '../models/template.dart';
 import '../session.dart';
+import '../storage/app_store.dart';
 import 'shared/crop_view.dart';
 import 'shared/export_sheet.dart';
+import 'shared/filmstrip.dart';
 import 'shared/preview_view.dart';
 import 'shared/slider_group.dart';
 import 'theme.dart';
@@ -42,7 +45,8 @@ Future<void> runAutoFix(Session session) async {
 class DesktopShell extends StatefulWidget {
   final Session session;
   final Renderer? renderer; // null in widget tests
-  const DesktopShell({super.key, required this.session, this.renderer});
+  final AppStore? store; // null in widget tests
+  const DesktopShell({super.key, required this.session, this.renderer, this.store});
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();
@@ -51,6 +55,7 @@ class DesktopShell extends StatefulWidget {
 class _DesktopShellState extends State<DesktopShell> {
   Session get session => widget.session;
   bool _cropping = false; // the photo area shows the crop tool instead of the preview
+  bool _dropping = false; // files are being dragged over the window
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     // Leave typing alone: letters in a text field are text, not shortcuts.
@@ -81,8 +86,6 @@ class _DesktopShellState extends State<DesktopShell> {
     return KeyEventResult.handled;
   }
 
-  // Temporary import for Task 4; Task 7 replaces it with folders, drag and drop and a
-  // skipped-files list.
   // Task 9 replaces this with Session.specFor (templates, shapes, credit).
   List<RenderSpec> _specs() => [
     for (final item in session.exportable)
@@ -112,48 +115,82 @@ class _DesktopShellState extends State<DesktopShell> {
     ),
   );
 
-  Future<void> _import() async {
-    final picked = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['jpg', 'jpeg', 'png', 'cr3', 'cr2', 'arw'],
+  static const _extensions = ['jpg', 'jpeg', 'png', 'cr3', 'cr2', 'arw'];
+
+  Future<void> _addPhotos() async {
+    final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: _extensions);
+    await _import([for (final f in picked) ?f.path]);
+  }
+
+  Future<void> _addFolder() async {
+    final dir = await FilePicker.getDirectoryPath(dialogTitle: 'Choose a folder of photos');
+    if (dir != null) await _import([dir]);
+  }
+
+  Future<void> _import(List<String> paths) async {
+    if (paths.isEmpty) return;
+    final skipped = await session.import(paths);
+    if (skipped.isEmpty || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${skipped.length} file${skipped.length == 1 ? '' : 's'} could not be opened'),
+        content: SizedBox(
+          width: 420,
+          child: ListView(
+            shrinkWrap: true,
+            children: [for (final p in skipped) Text(p.split(RegExp(r'[\\/]')).last)],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+        ],
+      ),
     );
-    final items = <BatchItem>[];
-    for (final path in picked.map((f) => f.path).nonNulls) {
-      try {
-        final p = await probe(path);
-        items.add(BatchItem(path: path, isRaw: p.isRaw, width: p.width, height: p.height));
-      } on DecodeFailure {
-        // listed to the user from Task 7 on
-      }
-    }
-    session.addItems(items);
   }
 
   @override
-  Widget build(BuildContext context) => Focus(
-    autofocus: true,
-    onKeyEvent: _onKey,
-    child: Scaffold(
-      body: Column(
-        children: [
-          _topBar(),
-          const Divider(height: 1),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _cropping
-                      ? CropView(session: session, renderer: widget.renderer)
-                      : PreviewView(session: session, renderer: widget.renderer),
-                ),
-                const VerticalDivider(width: 1),
-                SizedBox(width: 320, child: _panel()),
-              ],
+  Widget build(BuildContext context) => DropTarget(
+    onDragEntered: (_) => setState(() => _dropping = true),
+    onDragExited: (_) => setState(() => _dropping = false),
+    onDragDone: (d) {
+      setState(() => _dropping = false);
+      _import([for (final f in d.files) f.path]);
+    },
+    child: Focus(
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: Scaffold(
+        body: Column(
+          children: [
+            _topBar(),
+            const Divider(height: 1),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DecoratedBox(
+                      position: DecorationPosition.foreground,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: _dropping ? accentColor : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                      child: _cropping
+                          ? CropView(session: session, renderer: widget.renderer)
+                          : PreviewView(session: session, renderer: widget.renderer),
+                    ),
+                  ),
+                  const VerticalDivider(width: 1),
+                  SizedBox(width: 320, child: _panel()),
+                ],
+              ),
             ),
-          ),
-          const Divider(height: 1),
-          _bottomBar(),
-        ],
+            const Divider(height: 1),
+            _bottomBar(),
+          ],
+        ),
       ),
     ),
   );
@@ -166,7 +203,18 @@ class _DesktopShellState extends State<DesktopShell> {
       children: [
         const Text('PressFrame', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
         const SizedBox(width: 24),
-        TextButton(onPressed: _import, child: const Text('Import')),
+        PopupMenuButton<VoidCallback>(
+          tooltip: 'Import photos',
+          onSelected: (run) => run(),
+          itemBuilder: (context) => [
+            PopupMenuItem(value: _addPhotos, child: const Text('Add photos')),
+            PopupMenuItem(value: _addFolder, child: const Text('Add folder')),
+          ],
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            child: Text('Import ▾', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
+          ),
+        ),
         TextButton(onPressed: () {}, child: const Text('Edit')),
         const TextButton(onPressed: null, child: Text('Review')),
         ListenableBuilder(
@@ -278,34 +326,67 @@ class _DesktopShellState extends State<DesktopShell> {
     children: children,
   );
 
+  static const _filterNames = {
+    FlagFilter.all: 'All',
+    FlagFilter.picks: 'Picks',
+    FlagFilter.hideRejects: 'Hide rejects',
+  };
+
   Widget _bottomBar() => Container(
     color: panelColor,
-    height: 56,
-    padding: const EdgeInsets.symmetric(horizontal: 8),
-    child: ListenableBuilder(
-      listenable: session,
-      builder: (context, _) => Row(
-        children: [
-          IconButton(
-            tooltip: 'Undo (Ctrl+Z)',
-            onPressed: session.canUndo ? session.undo : null,
-            icon: const Icon(Icons.undo),
+    height: 72,
+    child: Row(
+      children: [
+        Expanded(
+          child: Filmstrip(session: session, thumbnails: widget.store?.thumbnailIf),
+        ),
+        ListenableBuilder(
+          listenable: session,
+          builder: (context, _) => Row(
+            children: [
+              if (session.items.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('${session.selectedIndex + 1} / ${session.items.length}'),
+                ),
+              PopupMenuButton<FlagFilter>(
+                tooltip: 'Filter photos',
+                initialValue: session.filter,
+                onSelected: (f) => session.filter = f,
+                itemBuilder: (context) => [
+                  for (final e in _filterNames.entries)
+                    PopupMenuItem(value: e.key, child: Text(e.value)),
+                ],
+                icon: const Icon(Icons.filter_list),
+              ),
+              IconButton(
+                tooltip: 'Undo (Ctrl+Z)',
+                onPressed: session.canUndo ? session.undo : null,
+                icon: const Icon(Icons.undo),
+              ),
+              IconButton(
+                tooltip: 'Redo (Ctrl+Y)',
+                onPressed: session.canRedo ? session.redo : null,
+                icon: const Icon(Icons.redo),
+              ),
+              TextButton(
+                onPressed: session.selected == null ? null : session.resetEdit,
+                child: const Text('Reset'),
+              ),
+              OutlinedButton(
+                onPressed: session.exportable.length < 2 ? null : session.applyEditToAll,
+                child: const Text('Apply to all'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: session.exportable.isEmpty ? null : _export,
+                child: const Text('Export all'),
+              ),
+              const SizedBox(width: 12),
+            ],
           ),
-          IconButton(
-            tooltip: 'Redo (Ctrl+Y)',
-            onPressed: session.canRedo ? session.redo : null,
-            icon: const Icon(Icons.redo),
-          ),
-          TextButton(
-            onPressed: session.selected == null ? null : session.resetEdit,
-            child: const Text('Reset'),
-          ),
-          const Spacer(),
-          if (session.items.isNotEmpty)
-            Text('${session.selectedIndex + 1} / ${session.items.length}'),
-          const SizedBox(width: 12),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }

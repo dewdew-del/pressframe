@@ -1,10 +1,51 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
+import 'engine/decode.dart';
 import 'models/batch_item.dart';
 import 'models/edit_params.dart';
 import 'models/template.dart';
 
 enum FlagFilter { all, picks, hideRejects }
+
+bool isSupportedPath(String path) =>
+    RegExp(r'\.(jpe?g|png|cr3|cr2|arw)$', caseSensitive: false).hasMatch(path);
+
+/// Turns picked or dropped paths into batch items. Folders are opened one level deep,
+/// unsupported files are ignored, paths in [existing] or listed twice are dropped, and
+/// files that cannot be read end up in `skipped`.
+Future<({List<BatchItem> items, List<String> skipped})> importPaths(
+  List<String> paths, {
+  Set<String> existing = const {},
+}) async {
+  final files = <String>[];
+  for (final path in paths) {
+    if (FileSystemEntity.isDirectorySync(path)) {
+      try {
+        files.addAll(
+          Directory(path).listSync().whereType<File>().map((f) => f.path).toList()..sort(),
+        );
+      } on FileSystemException {
+        // a folder we may not open simply adds nothing
+      }
+    } else {
+      files.add(path);
+    }
+  }
+  final seen = {...existing};
+  final items = <BatchItem>[], skipped = <String>[];
+  for (final path in files) {
+    if (!isSupportedPath(path) || !seen.add(path)) continue;
+    try {
+      final p = await probe(path);
+      items.add(BatchItem(path: path, isRaw: p.isRaw, width: p.width, height: p.height));
+    } on DecodeFailure {
+      skipped.add(path);
+    }
+  }
+  return (items: items, skipped: skipped);
+}
 
 /// All app state for the current batch of photos.
 ///
@@ -77,6 +118,13 @@ class Session extends ChangeNotifier {
     if (items.isEmpty) return;
     _items.addAll(items);
     notifyListeners();
+  }
+
+  /// Adds the photos behind [paths] and returns the files that could not be read.
+  Future<List<String>> import(List<String> paths) async {
+    final result = await importPaths(paths, existing: {for (final i in _items) i.path});
+    addItems(result.items);
+    return result.skipped;
   }
 
   void select(int index) {
