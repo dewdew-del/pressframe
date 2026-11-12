@@ -28,7 +28,8 @@ Size fitSize(Size box, double aspect) => box.width / box.height > aspect
 /// Shows the empty state, the file name while loading, or the reason a photo can't open.
 class PhotoLoader extends StatefulWidget {
   final Session session;
-  final bool enabled; // false in widget tests (no renderer): never touches the disk
+  final bool
+  enabled; // false in widget tests (no renderer): never touches the disk
   final int longEdge; // 2048 on Windows, 1280 on Android
   final Widget Function(BuildContext context, ui.Image? image) builder;
 
@@ -73,7 +74,9 @@ class _PhotoLoaderState extends State<PhotoLoader> {
     }
     try {
       final image = await decodeImage(path, maxLongEdge: widget.longEdge);
-      if (!mounted || _path != path) return image.dispose(); // user moved on meanwhile
+      if (!mounted || _path != path) {
+        return image.dispose(); // user moved on meanwhile
+      }
       _show(image, null);
     } on DecodeFailure catch (e) {
       if (mounted && _path == path) _show(null, e.reason);
@@ -94,9 +97,13 @@ class _PhotoLoaderState extends State<PhotoLoader> {
     listenable: widget.session,
     builder: (context, _) {
       if (widget.session.selected == null) {
-        return const Center(child: Text('Drop photos here or click Add photos'));
+        return const Center(
+          child: Text('Drop photos here or click Add photos'),
+        );
       }
-      if (_error != null) return Center(child: Text("Can't open this photo. $_error"));
+      if (_error != null) {
+        return Center(child: Text("Can't open this photo. $_error"));
+      }
       if (widget.enabled && _image == null) {
         return Center(child: Text(_path?.split(RegExp(r'[\\/]')).last ?? ''));
       }
@@ -113,12 +120,17 @@ class PreviewView extends StatefulWidget {
   final TemplateLibrary? library; // null in widget tests: no templates
   final int longEdge;
 
+  /// Phone: a quick swipe up or down on the unzoomed photo (pick / reject).
+  final VoidCallback? onSwipeUp, onSwipeDown;
+
   const PreviewView({
     super.key,
     required this.session,
     required this.renderer,
     this.library,
     this.longEdge = 2048,
+    this.onSwipeUp,
+    this.onSwipeDown,
   });
 
   @override
@@ -128,6 +140,24 @@ class PreviewView extends StatefulWidget {
 class _PreviewViewState extends State<PreviewView> {
   final _zoom = TransformationController();
   String? _path;
+  int _pointers = 0;
+  Offset _downAt = Offset.zero;
+  Duration _downTime = Duration.zero;
+  bool _single = false; // the gesture has used one finger only
+
+  void _pointerUp(PointerUpEvent e) {
+    _pointers--;
+    final move = e.position - _downAt;
+    final quick = e.timeStamp - _downTime < const Duration(milliseconds: 500);
+    final vertical = move.dy.abs() > 60 && move.dy.abs() > 2 * move.dx.abs();
+    // Only on the unzoomed photo: when zoomed in, a drag pans.
+    if (_single &&
+        quick &&
+        vertical &&
+        _zoom.value.getMaxScaleOnAxis() < 1.01) {
+      (move.dy < 0 ? widget.onSwipeUp : widget.onSwipeDown)?.call();
+    }
+  }
 
   @override
   void dispose() {
@@ -148,16 +178,33 @@ class _PreviewViewState extends State<PreviewView> {
           _path = session.selected?.path;
           _zoom.value = Matrix4.identity(); // a new photo starts unzoomed
         }
-        return GestureDetector(
-          onLongPressStart: (_) => session.showBefore.value = true,
-          onLongPressEnd: (_) => session.showBefore.value = false,
-          child: InteractiveViewer(
-            transformationController: _zoom,
-            maxScale: 8,
-            child: RepaintBoundary(
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: _PreviewPainter(session, renderer, image, widget.library),
+        return Listener(
+          onPointerDown: (e) {
+            _pointers++;
+            _single = _pointers == 1;
+            if (_single) {
+              _downAt = e.position;
+              _downTime = e.timeStamp;
+            }
+          },
+          onPointerUp: _pointerUp,
+          onPointerCancel: (_) => _pointers--,
+          child: GestureDetector(
+            onLongPressStart: (_) => session.showBefore.value = true,
+            onLongPressEnd: (_) => session.showBefore.value = false,
+            child: InteractiveViewer(
+              transformationController: _zoom,
+              maxScale: 8,
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: _PreviewPainter(
+                    session,
+                    renderer,
+                    image,
+                    widget.library,
+                  ),
+                ),
               ),
             ),
           ),
@@ -174,7 +221,14 @@ class _PreviewPainter extends CustomPainter {
   final TemplateLibrary? library;
 
   _PreviewPainter(this.session, this.renderer, this.image, this.library)
-    : super(repaint: Listenable.merge([session, session.liveEdit, session.showBefore, library]));
+    : super(
+        repaint: Listenable.merge([
+          session,
+          session.liveEdit,
+          session.showBefore,
+          library,
+        ]),
+      );
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -183,8 +237,14 @@ class _PreviewPainter extends CustomPainter {
     final spec = session.specFor(item, library?.templates ?? const []);
     final oriented = orientedSize(item.width, item.height, item.quarterTurns);
     final crop = specCrop(spec);
-    final fitted = fitSize(size, (crop.width * oriented.width) / (crop.height * oriented.height));
-    canvas.translate((size.width - fitted.width) / 2, (size.height - fitted.height) / 2);
+    final fitted = fitSize(
+      size,
+      (crop.width * oriented.width) / (crop.height * oriented.height),
+    );
+    canvas.translate(
+      (size.width - fitted.width) / 2,
+      (size.height - fitted.height) / 2,
+    );
     renderer.paintJob(
       canvas,
       jobFromSpec(

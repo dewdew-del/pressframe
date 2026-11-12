@@ -273,7 +273,7 @@ class _ReviewPanelState extends State<ReviewPanel> {
       final template = item.templateOverride == null || item.templateOverride == '' || names.contains(item.templateOverride)
           ? item.templateOverride
           : null;
-      return Container(
+      return Material(
         color: panelColor,
         child: ListView(
           padding: const EdgeInsets.all(12),

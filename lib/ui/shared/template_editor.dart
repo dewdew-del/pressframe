@@ -225,7 +225,7 @@ class _TemplateEditorState extends State<TemplateEditor> {
   Widget _controls() {
     final band = _band;
     final logo = _selected >= 0 && _selected < _logos.length ? _logos[_selected] : null;
-    return Container(
+    return Material(
       color: panelColor,
       child: ListView(
         padding: const EdgeInsets.symmetric(vertical: 12),

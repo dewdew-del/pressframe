@@ -1,20 +1,14 @@
-import 'dart:io';
-import 'dart:ui' as ui;
-
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../engine/auto_fix.dart';
-import '../engine/decode.dart';
 import '../engine/renderer.dart';
-import '../export/exporter.dart';
 import '../models/batch_item.dart';
 import '../models/template.dart';
 import '../session.dart';
 import '../storage/app_store.dart';
 import '../storage/template_library.dart';
+import 'shared/actions.dart';
 import 'shared/crop_view.dart';
 import 'shared/export_sheet.dart';
 import 'shared/filmstrip.dart';
@@ -25,26 +19,6 @@ import 'shared/slider_group.dart';
 import 'shared/template_editor.dart';
 import 'shared/template_panel.dart';
 import 'theme.dart';
-
-/// Reads a small copy of the selected photo and moves the sliders to a sensible start.
-Future<void> runAutoFix(Session session) async {
-  final item = session.selected;
-  if (item == null) return;
-  final ui.Image small;
-  try {
-    small = await decodeImage(item.path, maxLongEdge: 256);
-  } on DecodeFailure {
-    return; // the preview already shows why this photo cannot be opened
-  }
-  final data = await small.toByteData(format: ui.ImageByteFormat.rawRgba);
-  final (w, h) = (small.width, small.height);
-  small.dispose();
-  if (data == null || session.selected?.path != item.path) return;
-  session.setEdit(
-    autoFix(data.buffer.asUint8List(), w, h, session.selected!.edit),
-    commit: true,
-  );
-}
 
 /// Laptop layout: top bar, photo with a 320 px tool panel on the right, bottom bar.
 class DesktopShell extends StatefulWidget {
@@ -59,6 +33,12 @@ class DesktopShell extends StatefulWidget {
 }
 
 class _DesktopShellState extends State<DesktopShell> {
+  late final actions = AppActions(
+    session: widget.session,
+    renderer: widget.renderer,
+    store: widget.store,
+    library: widget.library,
+  );
   Session get session => widget.session;
   bool _cropping = false; // the photo area shows the crop tool instead of the preview
   bool _dropping = false; // files are being dragged over the window
@@ -94,11 +74,6 @@ class _DesktopShellState extends State<DesktopShell> {
     return KeyEventResult.handled;
   }
 
-  List<RenderSpec> _specs() => [
-    for (final item in session.exportable)
-      session.specFor(item, widget.library?.templates ?? const []),
-  ];
-
   Future<BuiltTemplate?> _openEditor(BuildContext context, BuiltTemplate initial) =>
       showDialog<BuiltTemplate>(
         context: context,
@@ -121,102 +96,13 @@ class _DesktopShellState extends State<DesktopShell> {
     builder: (context) => Dialog(
       child: SizedBox(
         width: 520,
-        child: ExportSheet(
-          session: session,
-          specs: _specs,
-          exporter: widget.renderer == null
-              ? null
-              : Exporter(
-                  widget.renderer!,
-                  maxDecodeEdge: Platform.isAndroid ? 4096 : 8192,
-                  loadAssets: (_) async => widget.library?.assets ?? const {},
-                ),
-        ),
+        child: ExportSheet(session: session, specs: actions.specs, exporter: actions.exporter()),
       ),
     ),
   );
 
-  void _say(String message) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-
-  Future<void> _exportKit() async {
-    final bytes = await widget.store!.encodeKit('PressFrame kit', credit: session.credit);
-    final saved = await FilePicker.saveFile(
-      fileName: 'publication.pfkit',
-      bytes: bytes,
-      dialogTitle: 'Save the publication kit',
-    );
-    if (saved != null && mounted) _say('Kit saved. Share the file with your staff.');
-  }
-
   Future<void> _importKit() async {
-    final file = await FilePicker.pickFile(dialogTitle: 'Choose a .pfkit file');
-    final path = file?.path;
-    if (path == null) return;
-    try {
-      final kit = await widget.store!.importKit(path);
-      await widget.library?.reload();
-      if (!mounted) return;
-      // The kit sets how the credit looks; whether it is on stays the user's choice.
-      session.credit = kit.credit.copyWith(enabled: session.credit.enabled);
-      setState(() => _kitImports++);
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Kit imported'),
-          content: SizedBox(
-            width: 420,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                if (kit.presets.isEmpty && kit.templates.isEmpty) const Text('The kit was empty.'),
-                for (final p in kit.presets) Text('Preset: ${p.name}'),
-                for (final t in kit.templates) Text('Template: ${t.name}'),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
-          ],
-        ),
-      );
-    } on FormatException catch (e) {
-      if (mounted) _say('That kit could not be imported (${e.message}). Nothing was changed.');
-    }
-  }
-
-  static const _extensions = ['jpg', 'jpeg', 'png', 'cr3', 'cr2', 'arw'];
-
-  Future<void> _addPhotos() async {
-    final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: _extensions);
-    await _import([for (final f in picked) ?f.path]);
-  }
-
-  Future<void> _addFolder() async {
-    final dir = await FilePicker.getDirectoryPath(dialogTitle: 'Choose a folder of photos');
-    if (dir != null) await _import([dir]);
-  }
-
-  Future<void> _import(List<String> paths) async {
-    if (paths.isEmpty) return;
-    final skipped = await session.import(paths);
-    if (skipped.isEmpty || !mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${skipped.length} file${skipped.length == 1 ? '' : 's'} could not be opened'),
-        content: SizedBox(
-          width: 420,
-          child: ListView(
-            shrinkWrap: true,
-            children: [for (final p in skipped) Text(p.split(RegExp(r'[\\/]')).last)],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
-        ],
-      ),
-    );
+    if (await actions.importKit(context) && mounted) setState(() => _kitImports++);
   }
 
   @override
@@ -225,7 +111,7 @@ class _DesktopShellState extends State<DesktopShell> {
     onDragExited: (_) => setState(() => _dropping = false),
     onDragDone: (d) {
       setState(() => _dropping = false);
-      _import([for (final f in d.files) f.path]);
+      actions.importPaths(context, [for (final f in d.files) f.path]);
     },
     child: Focus(
       autofocus: true,
@@ -236,30 +122,32 @@ class _DesktopShellState extends State<DesktopShell> {
             _topBar(),
             const Divider(height: 1),
             Expanded(
-              child: _review ? _reviewGrid() : Row(
-                children: [
-                  Expanded(
-                    child: DecoratedBox(
-                      position: DecorationPosition.foreground,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: _dropping ? accentColor : Colors.transparent,
-                          width: 3,
-                        ),
-                      ),
-                      child: _cropping
-                          ? CropView(session: session, renderer: widget.renderer)
-                          : PreviewView(
-                              session: session,
-                              renderer: widget.renderer,
-                              library: widget.library,
+              child: _review
+                  ? _reviewGrid()
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: DecoratedBox(
+                            position: DecorationPosition.foreground,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: _dropping ? accentColor : Colors.transparent,
+                                width: 3,
+                              ),
                             ),
+                            child: _cropping
+                                ? CropView(session: session, renderer: widget.renderer)
+                                : PreviewView(
+                                    session: session,
+                                    renderer: widget.renderer,
+                                    library: widget.library,
+                                  ),
+                          ),
+                        ),
+                        const VerticalDivider(width: 1),
+                        SizedBox(width: 320, child: _panel()),
+                      ],
                     ),
-                  ),
-                  const VerticalDivider(width: 1),
-                  SizedBox(width: 320, child: _panel()),
-                ],
-              ),
             ),
             const Divider(height: 1),
             _bottomBar(),
@@ -269,6 +157,23 @@ class _DesktopShellState extends State<DesktopShell> {
     ),
   );
 
+  Widget _menu(String label, String tooltip, Map<String, VoidCallback> entries, {bool enabled = true}) =>
+      PopupMenuButton<VoidCallback>(
+        tooltip: tooltip,
+        enabled: enabled,
+        onSelected: (run) => run(),
+        itemBuilder: (context) => [
+          for (final e in entries.entries) PopupMenuItem(value: e.value, child: Text(e.key)),
+        ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          child: Text(
+            '$label ▾',
+            style: const TextStyle(color: accentColor, fontWeight: FontWeight.w500),
+          ),
+        ),
+      );
+
   Widget _topBar() => Container(
     color: panelColor,
     height: 48,
@@ -277,18 +182,10 @@ class _DesktopShellState extends State<DesktopShell> {
       children: [
         const Text('PressFrame', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
         const SizedBox(width: 24),
-        PopupMenuButton<VoidCallback>(
-          tooltip: 'Import photos',
-          onSelected: (run) => run(),
-          itemBuilder: (context) => [
-            PopupMenuItem(value: _addPhotos, child: const Text('Add photos')),
-            PopupMenuItem(value: _addFolder, child: const Text('Add folder')),
-          ],
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            child: Text('Import ▾', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
-          ),
-        ),
+        _menu('Import', 'Import photos', {
+          'Add photos': () => actions.addPhotos(context),
+          'Add folder': () => actions.addFolder(context),
+        }),
         _modeButton('Edit', !_review, () => setState(() => _review = false)),
         ListenableBuilder(
           listenable: session,
@@ -306,19 +203,10 @@ class _DesktopShellState extends State<DesktopShell> {
           ),
         ),
         const Spacer(),
-        PopupMenuButton<VoidCallback>(
-          tooltip: 'Publication kit',
-          enabled: widget.store != null,
-          onSelected: (run) => run(),
-          itemBuilder: (context) => [
-            PopupMenuItem(value: _exportKit, child: const Text('Export kit')),
-            PopupMenuItem(value: _importKit, child: const Text('Import kit')),
-          ],
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            child: Text('Kit ▾', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
-          ),
-        ),
+        _menu('Kit', 'Publication kit', {
+          'Export kit': () => actions.exportKit(context),
+          'Import kit': _importKit,
+        }, enabled: widget.store != null),
       ],
     ),
   );
@@ -340,14 +228,14 @@ class _DesktopShellState extends State<DesktopShell> {
     builder: (context, _) => ReviewGrid(
       session: session,
       renderer: widget.renderer,
-      templates: widget.library?.templates ?? const [],
-      assets: widget.library?.assets ?? const {},
-      thumbnails: widget.store?.thumbnailIf,
+      templates: actions.templates,
+      assets: actions.assets,
+      thumbnails: actions.thumbnails,
       onOpenInEdit: () => setState(() => _review = false),
     ),
   );
 
-  Widget _panel() => Container(
+  Widget _panel() => Material(
     color: panelColor,
     child: SingleChildScrollView(
       child: Column(
@@ -361,7 +249,7 @@ class _DesktopShellState extends State<DesktopShell> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
                 child: OutlinedButton(
-                  onPressed: () => runAutoFix(session),
+                  onPressed: actions.autoFixSelected,
                   child: const Text('Auto fix'),
                 ),
               ),
@@ -370,7 +258,13 @@ class _DesktopShellState extends State<DesktopShell> {
           ]),
           _section('Color', [SliderGroup(session: session, sliders: colorSliders)]),
           _section('Detail', [SliderGroup(session: session, sliders: detailSliders)]),
-          _section('Crop', [_cropTools()], open: false),
+          _section('Crop', [
+            CropTools(
+              session: session,
+              cropping: _cropping,
+              onCropping: (v) => setState(() => _cropping = v),
+            ),
+          ], open: false),
           _section('Template', [
             TemplatePanel(
               session: session,
@@ -384,67 +278,6 @@ class _DesktopShellState extends State<DesktopShell> {
     ),
   );
 
-  Widget _cropTools() => ListenableBuilder(
-    listenable: session,
-    builder: (context, _) {
-      final item = session.selected;
-      final on = item != null;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: on ? () => _rotate(3) : null,
-                  icon: const Icon(Icons.rotate_left),
-                  label: const Text('Rotate left'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: on ? () => _rotate(1) : null,
-                  icon: const Icon(Icons.rotate_right),
-                  label: const Text('Rotate right'),
-                ),
-                FilterChip(
-                  label: const Text('Adjust crop'),
-                  selected: _cropping,
-                  onSelected: on ? (v) => setState(() => _cropping = v) : null,
-                ),
-                TextButton(
-                  onPressed: on
-                      ? () => session.updateSelected(
-                          (i) => i.copyWith(crop: () => null, straighten: 0),
-                        )
-                      : null,
-                  child: const Text('Reset crop'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          LabeledSlider(
-            label: 'Straighten',
-            min: -15,
-            max: 15,
-            value: item?.straighten ?? 0,
-            enabled: on,
-            format: (v) => '${v.toStringAsFixed(1)}°',
-            onChanged: (v) => session.updateLive((i) => i.copyWith(straighten: v), commit: false),
-            onChangeEnd: (v) => session.updateLive((i) => i.copyWith(straighten: v), commit: true),
-          ),
-        ],
-      );
-    },
-  );
-
-  // A turned photo has a different shape, so an old crop no longer fits: start over.
-  void _rotate(int turns) => session.updateSelected(
-    (i) => i.copyWith(quarterTurns: (i.quarterTurns + turns) % 4, crop: () => null),
-  );
-
   Widget _section(String title, List<Widget> children, {bool open = true}) => ExpansionTile(
     title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
     initiallyExpanded: open,
@@ -452,19 +285,13 @@ class _DesktopShellState extends State<DesktopShell> {
     children: children,
   );
 
-  static const _filterNames = {
-    FlagFilter.all: 'All',
-    FlagFilter.picks: 'Picks',
-    FlagFilter.hideRejects: 'Hide rejects',
-  };
-
   Widget _bottomBar() => Container(
     color: panelColor,
     height: 72,
     child: Row(
       children: [
         Expanded(
-          child: Filmstrip(session: session, thumbnails: widget.store?.thumbnailIf),
+          child: Filmstrip(session: session, thumbnails: actions.thumbnails),
         ),
         ListenableBuilder(
           listenable: session,
@@ -480,7 +307,7 @@ class _DesktopShellState extends State<DesktopShell> {
                 initialValue: session.filter,
                 onSelected: (f) => session.filter = f,
                 itemBuilder: (context) => [
-                  for (final e in _filterNames.entries)
+                  for (final e in filterNames.entries)
                     PopupMenuItem(value: e.key, child: Text(e.value)),
                 ],
                 icon: const Icon(Icons.filter_list),

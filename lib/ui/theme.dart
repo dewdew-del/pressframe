@@ -20,7 +20,8 @@ final ThemeData pressFrameTheme = ThemeData(
   dividerColor: const Color(0xFF3A3A3A),
   sliderTheme: const SliderThemeData(
     trackHeight: 2,
-    overlayShape: RoundSliderOverlayShape(overlayRadius: 16),
+    // 24 px radius makes every slider 48 px tall: a full-size touch target.
+    overlayShape: RoundSliderOverlayShape(overlayRadius: 24),
     thumbShape: RoundSliderThumbShape(enabledThumbRadius: 7),
   ),
   expansionTileTheme: const ExpansionTileThemeData(
