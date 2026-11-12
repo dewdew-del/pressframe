@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -56,5 +57,60 @@ void main() {
     final r = cropForShape(const Size(6000, 4000), null, const Rect.fromLTWH(0.8, -0.2, 0.5, 0.5));
     expect(r.left >= 0 && r.top >= 0 && r.right <= 1 && r.bottom <= 1, true);
     expect(r.width > 0 && r.height > 0, true);
+  });
+
+  group('insetForStraighten', () {
+    const photo = Size(6000, 4000);
+
+    test('no rotation keeps the full photo', () {
+      expectRect(insetForStraighten(photo, 0), full);
+    });
+
+    test('at 10 degrees it is centered, same shape, and has no empty corners', () {
+      for (final degrees in [10.0, -10.0]) {
+        final r = insetForStraighten(photo, degrees);
+        expect(r.center.dx, closeTo(0.5, 1e-9));
+        expect(r.center.dy, closeTo(0.5, 1e-9));
+        expect((r.width * 6000) / (r.height * 4000), closeTo(1.5, 1e-9));
+        final a = -degrees * math.pi / 180;
+        for (final corner in [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight]) {
+          // The corner in pixels around the center, rotated back onto the unrotated photo.
+          final x = (corner.dx - 0.5) * 6000, y = (corner.dy - 0.5) * 4000;
+          final sx = x * math.cos(a) - y * math.sin(a), sy = x * math.sin(a) + y * math.cos(a);
+          expect(sx.abs(), lessThanOrEqualTo(3000 + 1e-6));
+          expect(sy.abs(), lessThanOrEqualTo(2000 + 1e-6));
+        }
+      }
+    });
+
+    test('more rotation leaves less photo', () {
+      double area(double d) {
+        final r = insetForStraighten(photo, d);
+        return r.width * r.height;
+      }
+
+      expect(area(15), lessThan(area(5)));
+      expect(area(5), lessThan(1));
+    });
+  });
+
+  group('effectiveCrop', () {
+    const photo = Size(6000, 4000);
+
+    test('a straightened photo with no crop uses the inset', () {
+      expectRect(effectiveCrop(photo, null, null, 10), insetForStraighten(photo, 10));
+    });
+
+    test('a user crop is kept inside the inset', () {
+      final inset = insetForStraighten(photo, 10);
+      final r = effectiveCrop(photo, null, const Rect.fromLTWH(0, 0, 0.6, 0.6), 10);
+      expect(r.left, closeTo(inset.left, 1e-9));
+      expect(r.top, closeTo(inset.top, 1e-9));
+      expect(r.right, closeTo(0.6, 1e-9));
+    });
+
+    test('without straighten it is cropForShape', () {
+      expectRect(effectiveCrop(photo, 1.0, null, 0), cropForShape(photo, 1.0, null));
+    });
   });
 }

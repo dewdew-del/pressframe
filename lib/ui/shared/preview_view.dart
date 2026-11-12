@@ -10,30 +10,42 @@ import '../../models/edit_params.dart';
 import '../../models/template.dart';
 import '../../session.dart';
 
-/// Builds the render job for one photo at a given output size. The preview, the review
-/// grid and the exporter all go through here, so they cannot drift apart.
-typedef JobBuilder = RenderJob Function(BatchItem item, ui.Image source, Size outputSize, Rect crop);
-
 /// The crop a photo will be exported with (normalized, on the rotated photo).
-Rect exportCrop(BatchItem item, double? aspect) =>
-    cropForShape(orientedSize(item.width, item.height, item.quarterTurns), aspect, item.crop);
+Rect exportCrop(BatchItem item, double? aspect) => effectiveCrop(
+  orientedSize(item.width, item.height, item.quarterTurns),
+  aspect,
+  item.crop,
+  item.straighten,
+);
 
-/// The selected photo with its edit applied, live. Wheel or pinch zooms, drag pans.
-class PreviewView extends StatefulWidget {
+/// The largest size with [aspect] (width / height) that fits inside [box].
+Size fitSize(Size box, double aspect) => box.width / box.height > aspect
+    ? Size(box.height * aspect, box.height)
+    : Size(box.width, box.width / aspect);
+
+/// Decodes the selected photo at preview size and hands it to [builder].
+/// Shows the empty state, the file name while loading, or the reason a photo can't open.
+class PhotoLoader extends StatefulWidget {
   final Session session;
-  final Renderer? renderer; // null in widget tests: shows a placeholder
+  final bool enabled; // false in widget tests (no renderer): never touches the disk
   final int longEdge; // 2048 on Windows, 1280 on Android
+  final Widget Function(BuildContext context, ui.Image? image) builder;
 
-  const PreviewView({super.key, required this.session, required this.renderer, this.longEdge = 2048});
+  const PhotoLoader({
+    super.key,
+    required this.session,
+    required this.builder,
+    this.enabled = true,
+    this.longEdge = 2048,
+  });
 
   @override
-  State<PreviewView> createState() => _PreviewViewState();
+  State<PhotoLoader> createState() => _PhotoLoaderState();
 }
 
-class _PreviewViewState extends State<PreviewView> {
+class _PhotoLoaderState extends State<PhotoLoader> {
   ui.Image? _image;
   String? _path, _error;
-  final _zoom = TransformationController();
 
   @override
   void initState() {
@@ -46,17 +58,18 @@ class _PreviewViewState extends State<PreviewView> {
   void dispose() {
     widget.session.removeListener(_onSession);
     _image?.dispose();
-    _zoom.dispose();
     super.dispose();
   }
 
   Future<void> _onSession() async {
     final path = widget.session.selected?.path;
     if (path == _path) return;
+    final first = _path == null && _image == null && _error == null;
     _path = path;
-    _zoom.value = Matrix4.identity();
-    if (widget.renderer == null) return;
-    if (path == null) return _show(null, null);
+    if (!widget.enabled || path == null) {
+      if (!first) _show(null, null);
+      return;
+    }
     try {
       final image = await decodeImage(path, maxLongEdge: widget.longEdge);
       if (!mounted || _path != path) return image.dispose(); // user moved on meanwhile
@@ -66,36 +79,82 @@ class _PreviewViewState extends State<PreviewView> {
     }
   }
 
-  void _show(ui.Image? image, String? error) => setState(() {
-    _image?.dispose();
-    _image = image;
-    _error = error;
-  });
+  void _show(ui.Image? image, String? error) {
+    if (!mounted) return;
+    setState(() {
+      _image?.dispose();
+      _image = image;
+      _error = error;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.session,
+    builder: (context, _) {
+      if (widget.session.selected == null) {
+        return const Center(child: Text('Drop photos here or click Add photos'));
+      }
+      if (_error != null) return Center(child: Text("Can't open this photo. $_error"));
+      if (widget.enabled && _image == null) {
+        return Center(child: Text(_path?.split(RegExp(r'[\\/]')).last ?? ''));
+      }
+      return widget.builder(context, _image);
+    },
+  );
+}
+
+/// The selected photo with its edit applied, live. Wheel or pinch zooms, drag pans,
+/// long-press shows the photo before editing.
+class PreviewView extends StatefulWidget {
+  final Session session;
+  final Renderer? renderer; // null in widget tests: shows a placeholder
+  final int longEdge;
+
+  const PreviewView({super.key, required this.session, required this.renderer, this.longEdge = 2048});
+
+  @override
+  State<PreviewView> createState() => _PreviewViewState();
+}
+
+class _PreviewViewState extends State<PreviewView> {
+  final _zoom = TransformationController();
+  String? _path;
+
+  @override
+  void dispose() {
+    _zoom.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final session = widget.session, renderer = widget.renderer;
-    if (session.selected == null) {
-      return const Center(child: Text('Drop photos here or click Add photos'));
-    }
-    if (_error != null) return Center(child: Text("Can't open this photo. $_error"));
-    final image = _image;
-    if (renderer == null || image == null) {
-      return Center(child: Text(_path?.split(RegExp(r'[\\/]')).last ?? ''));
-    }
-    return GestureDetector(
-      onLongPressStart: (_) => session.showBefore.value = true,
-      onLongPressEnd: (_) => session.showBefore.value = false,
-      child: InteractiveViewer(
-        transformationController: _zoom,
-        maxScale: 8,
-        child: RepaintBoundary(
-          child: CustomPaint(
-            size: Size.infinite,
-            painter: _PreviewPainter(session, renderer, image),
+    return PhotoLoader(
+      session: session,
+      enabled: renderer != null,
+      longEdge: widget.longEdge,
+      builder: (context, image) {
+        if (renderer == null || image == null) return const SizedBox.expand();
+        if (_path != session.selected?.path) {
+          _path = session.selected?.path;
+          _zoom.value = Matrix4.identity(); // a new photo starts unzoomed
+        }
+        return GestureDetector(
+          onLongPressStart: (_) => session.showBefore.value = true,
+          onLongPressEnd: (_) => session.showBefore.value = false,
+          child: InteractiveViewer(
+            transformationController: _zoom,
+            maxScale: 8,
+            child: RepaintBoundary(
+              child: CustomPaint(
+                size: Size.infinite,
+                painter: _PreviewPainter(session, renderer, image),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -114,10 +173,7 @@ class _PreviewPainter extends CustomPainter {
     if (item == null || size.isEmpty) return;
     final oriented = orientedSize(item.width, item.height, item.quarterTurns);
     final crop = exportCrop(item, null);
-    final aspect = (crop.width * oriented.width) / (crop.height * oriented.height);
-    final fitted = size.width / size.height > aspect
-        ? Size(size.height * aspect, size.height)
-        : Size(size.width, size.width / aspect);
+    final fitted = fitSize(size, (crop.width * oriented.width) / (crop.height * oriented.height));
     canvas.translate((size.width - fitted.width) / 2, (size.height - fitted.height) / 2);
     renderer.paintJob(
       canvas,

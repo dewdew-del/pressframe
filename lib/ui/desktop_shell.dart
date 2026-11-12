@@ -9,6 +9,7 @@ import '../engine/decode.dart';
 import '../engine/renderer.dart';
 import '../models/batch_item.dart';
 import '../session.dart';
+import 'shared/crop_view.dart';
 import 'shared/preview_view.dart';
 import 'shared/slider_group.dart';
 import 'theme.dart';
@@ -45,6 +46,7 @@ class DesktopShell extends StatefulWidget {
 
 class _DesktopShellState extends State<DesktopShell> {
   Session get session => widget.session;
+  bool _cropping = false; // the photo area shows the crop tool instead of the preview
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     // Leave typing alone: letters in a text field are text, not shortcuts.
@@ -107,7 +109,9 @@ class _DesktopShellState extends State<DesktopShell> {
             child: Row(
               children: [
                 Expanded(
-                  child: PreviewView(session: session, renderer: widget.renderer),
+                  child: _cropping
+                      ? CropView(session: session, renderer: widget.renderer)
+                      : PreviewView(session: session, renderer: widget.renderer),
                 ),
                 const VerticalDivider(width: 1),
                 SizedBox(width: 320, child: _panel()),
@@ -160,11 +164,72 @@ class _DesktopShellState extends State<DesktopShell> {
           ]),
           _section('Color', [SliderGroup(session: session, sliders: colorSliders)]),
           _section('Detail', [SliderGroup(session: session, sliders: detailSliders)]),
-          _section('Crop', const [_Later('Crop arrives in the next step.')], open: false),
+          _section('Crop', [_cropTools()], open: false),
           _section('Template', const [_Later('Templates arrive in a later step.')], open: false),
         ],
       ),
     ),
+  );
+
+  Widget _cropTools() => ListenableBuilder(
+    listenable: session,
+    builder: (context, _) {
+      final item = session.selected;
+      final on = item != null;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: on ? () => _rotate(3) : null,
+                  icon: const Icon(Icons.rotate_left),
+                  label: const Text('Rotate left'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: on ? () => _rotate(1) : null,
+                  icon: const Icon(Icons.rotate_right),
+                  label: const Text('Rotate right'),
+                ),
+                FilterChip(
+                  label: const Text('Adjust crop'),
+                  selected: _cropping,
+                  onSelected: on ? (v) => setState(() => _cropping = v) : null,
+                ),
+                TextButton(
+                  onPressed: on
+                      ? () => session.updateSelected(
+                          (i) => i.copyWith(crop: () => null, straighten: 0),
+                        )
+                      : null,
+                  child: const Text('Reset crop'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          LabeledSlider(
+            label: 'Straighten',
+            min: -15,
+            max: 15,
+            value: item?.straighten ?? 0,
+            enabled: on,
+            format: (v) => '${v.toStringAsFixed(1)}°',
+            onChanged: (v) => session.updateLive((i) => i.copyWith(straighten: v), commit: false),
+            onChangeEnd: (v) => session.updateLive((i) => i.copyWith(straighten: v), commit: true),
+          ),
+        ],
+      );
+    },
+  );
+
+  // A turned photo has a different shape, so an old crop no longer fits: start over.
+  void _rotate(int turns) => session.updateSelected(
+    (i) => i.copyWith(quarterTurns: (i.quarterTurns + turns) % 4, crop: () => null),
   );
 
   Widget _section(String title, List<Widget> children, {bool open = true}) => ExpansionTile(

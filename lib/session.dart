@@ -106,15 +106,23 @@ class Session extends ChangeNotifier {
     final start = _dragStart;
     if (start == null) return;
     _dragStart = null;
-    if (start.edit != _items[_selected].edit) _push(start);
+    final now = _items[_selected];
+    if (start.edit != now.edit || start.crop != now.crop || start.straighten != now.straighten) {
+      _push(start);
+    }
   }
 
   /// commit=false while a slider is being dragged, true when it is released.
-  void setEdit(EditParams e, {required bool commit}) {
+  void setEdit(EditParams e, {required bool commit}) =>
+      updateLive((i) => i.copyWith(edit: e), commit: commit);
+
+  /// A change that arrives many times during one drag (slider, crop handle). The whole
+  /// drag becomes a single undo step when it ends with commit=true.
+  void updateLive(BatchItem Function(BatchItem) change, {required bool commit}) {
     final current = selected;
     if (current == null) return;
     _dragStart ??= current;
-    _items[_selected] = current.copyWith(edit: e);
+    _items[_selected] = change(current);
     if (commit) {
       _endDrag();
       notifyListeners();
