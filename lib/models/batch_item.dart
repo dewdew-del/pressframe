@@ -34,6 +34,9 @@ class BatchItem {
     this.creditOverride,
   });
 
+  /// A RAW whose embedded preview is under 2000 px: it exports small, so the UI warns.
+  bool get smallPreview => isRaw && (width > height ? width : height) < 2000;
+
   /// Nullable fields take a function so they can be set back to null:
   /// `copyWith(crop: () => null)`.
   BatchItem copyWith({

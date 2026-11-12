@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
@@ -7,9 +8,12 @@ import 'package:flutter/services.dart';
 import '../engine/auto_fix.dart';
 import '../engine/decode.dart';
 import '../engine/renderer.dart';
+import '../export/exporter.dart';
 import '../models/batch_item.dart';
+import '../models/template.dart';
 import '../session.dart';
 import 'shared/crop_view.dart';
+import 'shared/export_sheet.dart';
 import 'shared/preview_view.dart';
 import 'shared/slider_group.dart';
 import 'theme.dart';
@@ -79,6 +83,35 @@ class _DesktopShellState extends State<DesktopShell> {
 
   // Temporary import for Task 4; Task 7 replaces it with folders, drag and drop and a
   // skipped-files list.
+  // Task 9 replaces this with Session.specFor (templates, shapes, credit).
+  List<RenderSpec> _specs() => [
+    for (final item in session.exportable)
+      (
+        item: item,
+        shape: OutputShape.original,
+        template: null,
+        creditText: null,
+        credit: session.credit,
+      ),
+  ];
+
+  void _export() => showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => Dialog(
+      child: SizedBox(
+        width: 520,
+        child: ExportSheet(
+          session: session,
+          specs: _specs,
+          exporter: widget.renderer == null
+              ? null
+              : Exporter(widget.renderer!, maxDecodeEdge: Platform.isAndroid ? 4096 : 8192),
+        ),
+      ),
+    ),
+  );
+
   Future<void> _import() async {
     final picked = await FilePicker.pickFiles(
       type: FileType.custom,
@@ -136,7 +169,13 @@ class _DesktopShellState extends State<DesktopShell> {
         TextButton(onPressed: _import, child: const Text('Import')),
         TextButton(onPressed: () {}, child: const Text('Edit')),
         const TextButton(onPressed: null, child: Text('Review')),
-        const TextButton(onPressed: null, child: Text('Export')),
+        ListenableBuilder(
+          listenable: session,
+          builder: (context, _) => TextButton(
+            onPressed: session.exportable.isEmpty ? null : _export,
+            child: const Text('Export'),
+          ),
+        ),
         const Spacer(),
         const TextButton(onPressed: null, child: Text('Kit ▾')),
       ],

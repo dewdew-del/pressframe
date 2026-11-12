@@ -66,6 +66,7 @@ class LabeledSlider extends StatefulWidget {
   final bool enabled;
   final ValueChanged<double> onChanged, onChangeEnd;
   final String Function(double)? format;
+  final double resetValue; // what a double-tap goes back to
 
   const LabeledSlider({
     super.key,
@@ -77,6 +78,7 @@ class LabeledSlider extends StatefulWidget {
     required this.onChangeEnd,
     this.enabled = true,
     this.format,
+    this.resetValue = 0,
   });
 
   @override
@@ -95,7 +97,7 @@ class _LabeledSliderState extends State<LabeledSlider> {
   @override
   Widget build(BuildContext context) {
     final value = (_dragging ?? widget.value).clamp(widget.min, widget.max);
-    final reset = 0.0.clamp(widget.min, widget.max);
+    final reset = widget.resetValue.clamp(widget.min, widget.max).toDouble();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
