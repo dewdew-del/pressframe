@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pressframe/models/batch_item.dart';
 import 'package:pressframe/models/edit_params.dart';
+import 'package:pressframe/models/template.dart';
 import 'package:pressframe/session.dart';
 
 BatchItem item(String name, {int w = 6000, int h = 4000}) =>
@@ -158,5 +159,66 @@ void main() {
     expect(s.selectedIndex, 0);
     s.selectNext(1);
     expect(s.selectedIndex, 2);
+  });
+
+  group('shapes and templates per photo', () {
+    const band = BuiltTemplate(name: 'Band', band: GradientBand());
+    const frame45 = FrameTemplate(name: 'Frame45', file: 'f.png', aspect: 0.8);
+    const templates = <Template>[band, frame45];
+
+    Session mixed() => Session()
+      ..addItems([item('wide'), item('tall', w: 4000, h: 6000), item('square', w: 3000, h: 3000)])
+      ..landscapeShape = OutputShape.r16x9
+      ..portraitShape = OutputShape.r4x5
+      ..landscapeTemplate = 'Band'
+      ..portraitTemplate = 'Frame45';
+
+    test('each photo uses the shape for its orientation; square counts as landscape', () {
+      final s = mixed();
+      expect(s.shapeFor(s.items[0]), OutputShape.r16x9);
+      expect(s.shapeFor(s.items[1]), OutputShape.r4x5);
+      expect(s.shapeFor(s.items[2]), OutputShape.r16x9);
+    });
+
+    test('a quarter turn flips which shape applies', () {
+      final s = mixed();
+      expect(s.shapeFor(s.items[0].copyWith(quarterTurns: 1)), OutputShape.r4x5);
+      expect(s.shapeFor(s.items[1].copyWith(quarterTurns: 3)), OutputShape.r16x9);
+    });
+
+    test('per-photo overrides win', () {
+      final s = mixed();
+      final wide = s.items[0].copyWith(
+        shapeOverride: () => OutputShape.r1x1,
+        templateOverride: () => 'Frame45',
+        creditOverride: () => 'Photo by Ana',
+      );
+      expect(s.shapeFor(wide), OutputShape.r1x1);
+      expect(s.templateFor(wide), 'Frame45');
+      s.creditText = 'Photo by Staff';
+      expect(s.specFor(wide, templates).creditText, 'Photo by Ana');
+      expect(s.specFor(s.items[1], templates).creditText, 'Photo by Staff');
+    });
+
+    test('specFor resolves templates by name', () {
+      final s = mixed();
+      expect(s.specFor(s.items[0], templates).template, same(band));
+      expect(s.specFor(s.items[1], templates).template, same(frame45));
+      expect(s.specFor(s.items[0], const []).template, isNull, reason: 'deleted template');
+    });
+
+    test('a frame is dropped when the shape does not match it', () {
+      final s = mixed()..portraitShape = OutputShape.r2x3;
+      expect(s.specFor(s.items[1], templates).template, isNull);
+      s.portraitShape = OutputShape.original;
+      expect(s.specFor(s.items[1], templates).template, isNull);
+      s.portraitShape = OutputShape.r4x5;
+      expect(s.specFor(s.items[1], templates).template, same(frame45));
+    });
+
+    test('a built template works with every shape', () {
+      final s = mixed()..landscapeShape = OutputShape.original;
+      expect(s.specFor(s.items[0], templates).template, same(band));
+    });
   });
 }

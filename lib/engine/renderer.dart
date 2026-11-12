@@ -1,9 +1,8 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'dart:ui' show Canvas, Offset, Paint, Rect, Size;
 
-import 'package:flutter/widgets.dart' show Matrix4;
+import 'package:flutter/widgets.dart';
 
 import '../models/edit_params.dart';
 import '../models/template.dart';
@@ -94,6 +93,121 @@ class Renderer {
     }
     _shader.setImageSampler(0, job.source, filterQuality: ui.FilterQuality.low);
     canvas.drawRect(Offset.zero & job.outputSize, Paint()..shader = _shader);
+    _paintOverlay(canvas, job);
+  }
+
+  /// Branding on top of the photo: gradient band(s) then logos, or the frame PNG; then the
+  /// photo credit. Everything is sized from the output, so it looks the same at any size.
+  void _paintOverlay(Canvas canvas, RenderJob job) {
+    final size = job.outputSize;
+    final full = Offset.zero & size;
+    canvas.save();
+    canvas.clipRect(full);
+    Paint image(double opacity) => Paint()
+      ..filterQuality = FilterQuality.medium
+      ..color = Color.fromRGBO(255, 255, 255, opacity);
+
+    switch (job.template) {
+      case BuiltTemplate t:
+        final band = t.band;
+        if (band != null && band.heightFraction > 0 && band.opacity > 0) {
+          if (band.edge != BandEdge.bottom) _paintBand(canvas, size, band, top: true);
+          if (band.edge != BandEdge.top) _paintBand(canvas, size, band, top: false);
+        }
+        for (final logo in t.logos) {
+          final picture = job.assets[logo.file];
+          if (picture == null) continue; // missing file: the template is drawn without it
+          final w = logo.widthFraction * size.width;
+          canvas.drawImageRect(
+            picture,
+            Rect.fromLTWH(0, 0, picture.width.toDouble(), picture.height.toDouble()),
+            Rect.fromCenter(
+              center: Offset(logo.cx * size.width, logo.cy * size.height),
+              width: w,
+              height: w * picture.height / picture.width,
+            ),
+            image(logo.opacity),
+          );
+        }
+      case FrameTemplate t:
+        final picture = job.assets[t.file];
+        if (picture != null) {
+          canvas.drawImageRect(
+            picture,
+            Rect.fromLTWH(0, 0, picture.width.toDouble(), picture.height.toDouble()),
+            full,
+            image(1),
+          );
+        }
+      case null:
+    }
+
+    final text = job.creditText?.trim() ?? '';
+    if (job.credit.enabled && text.isNotEmpty) {
+      final short = size.shortestSide;
+      final inset = 0.02 * short, fontSize = job.credit.sizeFraction * short;
+      final white = job.credit.white;
+      final painter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            color: white ? const Color(0xFFFFFFFF) : const Color(0xFF000000),
+            fontSize: fontSize,
+            fontWeight: FontWeight.w600,
+            shadows: [
+              Shadow(
+                color: white ? const Color(0xCC000000) : const Color(0xCCFFFFFF),
+                blurRadius: fontSize * 0.2,
+              ),
+            ],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: math.max(0, size.width - 2 * inset));
+      final corner = job.credit.corner;
+      final right = corner == Corner.topRight || corner == Corner.bottomRight;
+      final bottom = corner == Corner.bottomLeft || corner == Corner.bottomRight;
+      painter.paint(
+        canvas,
+        Offset(
+          right ? size.width - inset - painter.width : inset,
+          bottom ? size.height - inset - painter.height : inset,
+        ),
+      );
+      painter.dispose();
+    }
+    canvas.restore();
+  }
+
+  /// Colors run along the band; it is solid at the photo's edge and fades to nothing
+  /// toward the middle of the photo.
+  void _paintBand(Canvas canvas, Size size, GradientBand band, {required bool top}) {
+    final h = band.heightFraction * size.height;
+    final r = top
+        ? Rect.fromLTWH(0, 0, size.width, h)
+        : Rect.fromLTWH(0, size.height - h, size.width, h);
+    canvas.saveLayer(r, Paint());
+    canvas.drawRect(
+      r,
+      Paint()
+        ..shader = ui.Gradient.linear(r.centerLeft, r.centerRight, [
+          Color(band.startColor),
+          Color(band.endColor),
+        ]),
+    );
+    canvas.drawRect(
+      r,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = ui.Gradient.linear(
+          top ? r.topCenter : r.bottomCenter,
+          top ? r.bottomCenter : r.topCenter,
+          [Color.fromRGBO(0, 0, 0, band.opacity), const Color(0x00000000)],
+        ),
+    );
+    canvas.restore();
   }
 
   Future<ui.Image> render(RenderJob job) async {

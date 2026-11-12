@@ -185,3 +185,13 @@ class CreditStyle {
     white: j['white'] != false,
   );
 }
+
+/// A frame PNG has a fixed shape, so it only fits an output shape with the same aspect.
+bool frameFits(FrameTemplate frame, OutputShape shape) =>
+    shape.aspect != null && (shape.aspect! - frame.aspect).abs() <= 0.01;
+
+/// The image files a template needs from the app's assets folder.
+List<String> assetFiles(Template t) => switch (t) {
+  BuiltTemplate() => [for (final l in t.logos) l.file],
+  FrameTemplate() => [t.file],
+};

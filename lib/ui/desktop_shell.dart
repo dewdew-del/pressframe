@@ -14,12 +14,15 @@ import '../models/batch_item.dart';
 import '../models/template.dart';
 import '../session.dart';
 import '../storage/app_store.dart';
+import '../storage/template_library.dart';
 import 'shared/crop_view.dart';
 import 'shared/export_sheet.dart';
 import 'shared/filmstrip.dart';
 import 'shared/preset_panel.dart';
 import 'shared/preview_view.dart';
 import 'shared/slider_group.dart';
+import 'shared/template_editor.dart';
+import 'shared/template_panel.dart';
 import 'theme.dart';
 
 /// Reads a small copy of the selected photo and moves the sliders to a sensible start.
@@ -47,7 +50,8 @@ class DesktopShell extends StatefulWidget {
   final Session session;
   final Renderer? renderer; // null in widget tests
   final AppStore? store; // null in widget tests
-  const DesktopShell({super.key, required this.session, this.renderer, this.store});
+  final TemplateLibrary? library; // null in widget tests
+  const DesktopShell({super.key, required this.session, this.renderer, this.store, this.library});
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();
@@ -87,17 +91,26 @@ class _DesktopShellState extends State<DesktopShell> {
     return KeyEventResult.handled;
   }
 
-  // Task 9 replaces this with Session.specFor (templates, shapes, credit).
   List<RenderSpec> _specs() => [
     for (final item in session.exportable)
-      (
-        item: item,
-        shape: OutputShape.original,
-        template: null,
-        creditText: null,
-        credit: session.credit,
-      ),
+      session.specFor(item, widget.library?.templates ?? const []),
   ];
+
+  Future<BuiltTemplate?> _openEditor(BuildContext context, BuiltTemplate initial) =>
+      showDialog<BuiltTemplate>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Dialog(
+          insetPadding: const EdgeInsets.all(32),
+          clipBehavior: Clip.antiAlias,
+          child: TemplateEditor(
+            session: session,
+            library: widget.library!,
+            renderer: widget.renderer,
+            initial: initial,
+          ),
+        ),
+      );
 
   void _export() => showDialog<void>(
     context: context,
@@ -110,7 +123,11 @@ class _DesktopShellState extends State<DesktopShell> {
           specs: _specs,
           exporter: widget.renderer == null
               ? null
-              : Exporter(widget.renderer!, maxDecodeEdge: Platform.isAndroid ? 4096 : 8192),
+              : Exporter(
+                  widget.renderer!,
+                  maxDecodeEdge: Platform.isAndroid ? 4096 : 8192,
+                  loadAssets: (_) async => widget.library?.assets ?? const {},
+                ),
         ),
       ),
     ),
@@ -180,7 +197,11 @@ class _DesktopShellState extends State<DesktopShell> {
                       ),
                       child: _cropping
                           ? CropView(session: session, renderer: widget.renderer)
-                          : PreviewView(session: session, renderer: widget.renderer),
+                          : PreviewView(
+                              session: session,
+                              renderer: widget.renderer,
+                              library: widget.library,
+                            ),
                     ),
                   ),
                   const VerticalDivider(width: 1),
@@ -253,7 +274,14 @@ class _DesktopShellState extends State<DesktopShell> {
           _section('Color', [SliderGroup(session: session, sliders: colorSliders)]),
           _section('Detail', [SliderGroup(session: session, sliders: detailSliders)]),
           _section('Crop', [_cropTools()], open: false),
-          _section('Template', const [_Later('Templates arrive in a later step.')], open: false),
+          _section('Template', [
+            TemplatePanel(
+              session: session,
+              library: widget.library,
+              renderer: widget.renderer,
+              openEditor: _openEditor,
+            ),
+          ], open: false),
         ],
       ),
     ),
@@ -389,15 +417,5 @@ class _DesktopShellState extends State<DesktopShell> {
         ),
       ],
     ),
-  );
-}
-
-class _Later extends StatelessWidget {
-  final String text;
-  const _Later(this.text);
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-    child: Align(alignment: Alignment.centerLeft, child: Text(text)),
   );
 }

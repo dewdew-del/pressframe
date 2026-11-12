@@ -49,18 +49,16 @@ Rect resizeCrop(
 }
 
 /// Shows the whole rotated photo with a crop rectangle to drag (inside) or resize (corners).
-/// When [aspect] is set (the output shape has one) the rectangle keeps that shape.
+/// When the photo's output shape has an aspect, the rectangle keeps that shape.
 class CropView extends StatefulWidget {
   final Session session;
   final Renderer? renderer; // null in widget tests
-  final double? aspect;
   final int longEdge;
 
   const CropView({
     super.key,
     required this.session,
     required this.renderer,
-    this.aspect,
     this.longEdge = 2048,
   });
 
@@ -100,7 +98,8 @@ class _CropViewState extends State<CropView> {
             final fitted = fitSize(box, oriented.width / oriented.height);
             final photo = Alignment.center.inscribe(fitted, Offset.zero & constraints.biggest);
             final bounds = insetForStraighten(oriented, item.straighten);
-            final rect = exportCrop(item, widget.aspect);
+            final aspect = session.shapeFor(item).aspect;
+            final rect = exportCrop(item, aspect);
 
             Offset normalized(Offset local) => Offset(
               (local.dx - photo.left) / photo.width,
@@ -127,7 +126,7 @@ class _CropViewState extends State<CropView> {
                 final p = normalized(d.localPosition);
                 final next = _corner == null
                     ? moveCrop(start, p - _startPointer!, bounds)
-                    : resizeCrop(start, _corner!, p, bounds, oriented, widget.aspect);
+                    : resizeCrop(start, _corner!, p, bounds, oriented, aspect);
                 session.updateLive((i) => i.copyWith(crop: () => next), commit: false);
               },
               onPanEnd: (_) {

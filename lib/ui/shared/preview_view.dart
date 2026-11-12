@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 import '../../engine/decode.dart';
 import '../../engine/geometry.dart';
 import '../../engine/renderer.dart';
+import '../../export/exporter.dart';
 import '../../models/batch_item.dart';
 import '../../models/edit_params.dart';
-import '../../models/template.dart';
 import '../../session.dart';
+import '../../storage/template_library.dart';
 
 /// The crop a photo will be exported with (normalized, on the rotated photo).
 Rect exportCrop(BatchItem item, double? aspect) => effectiveCrop(
@@ -109,9 +110,16 @@ class _PhotoLoaderState extends State<PhotoLoader> {
 class PreviewView extends StatefulWidget {
   final Session session;
   final Renderer? renderer; // null in widget tests: shows a placeholder
+  final TemplateLibrary? library; // null in widget tests: no templates
   final int longEdge;
 
-  const PreviewView({super.key, required this.session, required this.renderer, this.longEdge = 2048});
+  const PreviewView({
+    super.key,
+    required this.session,
+    required this.renderer,
+    this.library,
+    this.longEdge = 2048,
+  });
 
   @override
   State<PreviewView> createState() => _PreviewViewState();
@@ -149,7 +157,7 @@ class _PreviewViewState extends State<PreviewView> {
             child: RepaintBoundary(
               child: CustomPaint(
                 size: Size.infinite,
-                painter: _PreviewPainter(session, renderer, image),
+                painter: _PreviewPainter(session, renderer, image, widget.library),
               ),
             ),
           ),
@@ -163,31 +171,28 @@ class _PreviewPainter extends CustomPainter {
   final Session session;
   final Renderer renderer;
   final ui.Image image;
+  final TemplateLibrary? library;
 
-  _PreviewPainter(this.session, this.renderer, this.image)
-    : super(repaint: Listenable.merge([session, session.liveEdit, session.showBefore]));
+  _PreviewPainter(this.session, this.renderer, this.image, this.library)
+    : super(repaint: Listenable.merge([session, session.liveEdit, session.showBefore, library]));
 
   @override
   void paint(Canvas canvas, Size size) {
     final item = session.selected;
     if (item == null || size.isEmpty) return;
+    final spec = session.specFor(item, library?.templates ?? const []);
     final oriented = orientedSize(item.width, item.height, item.quarterTurns);
-    final crop = exportCrop(item, null);
+    final crop = specCrop(spec);
     final fitted = fitSize(size, (crop.width * oriented.width) / (crop.height * oriented.height));
     canvas.translate((size.width - fitted.width) / 2, (size.height - fitted.height) / 2);
     renderer.paintJob(
       canvas,
-      RenderJob(
-        source: image,
-        edit: session.showBefore.value ? EditParams.neutral : item.edit,
-        quarterTurns: item.quarterTurns,
-        straighten: item.straighten,
-        crop: crop,
-        outputSize: fitted,
-        template: null,
-        assets: const {},
-        creditText: null,
-        credit: const CreditStyle(),
+      jobFromSpec(
+        spec,
+        image,
+        fitted,
+        library?.assets ?? const {},
+        edit: session.showBefore.value ? EditParams.neutral : null,
       ),
     );
   }

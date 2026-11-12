@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'engine/decode.dart';
+import 'engine/geometry.dart';
+import 'export/exporter.dart';
 import 'models/batch_item.dart';
 import 'models/edit_params.dart';
 import 'models/template.dart';
@@ -91,6 +93,39 @@ class Session extends ChangeNotifier {
   CreditStyle _credit = const CreditStyle();
   CreditStyle get credit => _credit;
   set credit(CreditStyle v) => _set(() => _credit = v);
+
+  bool _portrait(BatchItem i) {
+    final size = orientedSize(i.width, i.height, i.quarterTurns);
+    return size.height > size.width; // square counts as landscape
+  }
+
+  /// The output shape for this photo: its own override, else the batch shape for its
+  /// orientation after rotation.
+  OutputShape shapeFor(BatchItem item) =>
+      item.shapeOverride ?? (_portrait(item) ? _portraitShape : _landscapeShape);
+
+  /// The template name for this photo. An override of '' means "no template".
+  String? templateFor(BatchItem item) =>
+      item.templateOverride ?? (_portrait(item) ? _portraitTemplate : _landscapeTemplate);
+
+  /// Everything needed to render [item]. The template is null when none is chosen, when it
+  /// was deleted, or when it is a frame that does not fit the photo's output shape.
+  RenderSpec specFor(BatchItem item, List<Template> templates) {
+    final shape = shapeFor(item);
+    final name = templateFor(item);
+    Template? template;
+    for (final t in templates) {
+      if (t.name == name) template = t;
+    }
+    if (template is FrameTemplate && !frameFits(template, shape)) template = null;
+    return (
+      item: item,
+      shape: shape,
+      template: template,
+      creditText: item.creditOverride ?? _creditText,
+      credit: _credit,
+    );
+  }
 
   void _set(void Function() change) {
     change();

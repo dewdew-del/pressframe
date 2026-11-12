@@ -10,6 +10,7 @@ import '../engine/decode.dart';
 import '../engine/geometry.dart';
 import '../engine/renderer.dart';
 import '../models/batch_item.dart';
+import '../models/edit_params.dart';
 import '../models/template.dart';
 import 'filename.dart';
 
@@ -50,6 +51,35 @@ typedef RenderSpec = ({
   CreditStyle credit,
 });
 
+/// The crop a spec is rendered with (normalized, on the rotated photo).
+ui.Rect specCrop(RenderSpec spec) => effectiveCrop(
+  orientedSize(spec.item.width, spec.item.height, spec.item.quarterTurns),
+  spec.shape.aspect,
+  spec.item.crop,
+  spec.item.straighten,
+);
+
+/// The one place a spec becomes a render job: preview, review grid and export all call it.
+/// [edit] replaces the photo's sliders (the "before" view passes neutral).
+RenderJob jobFromSpec(
+  RenderSpec spec,
+  ui.Image source,
+  ui.Size outputSize,
+  Map<String, ui.Image> assets, {
+  EditParams? edit,
+}) => RenderJob(
+  source: source,
+  edit: edit ?? spec.item.edit,
+  quarterTurns: spec.item.quarterTurns,
+  straighten: spec.item.straighten,
+  crop: specCrop(spec),
+  outputSize: outputSize,
+  template: spec.template,
+  assets: assets,
+  creditText: spec.creditText,
+  credit: spec.credit,
+);
+
 /// The output problem that stops a whole export (folder gone, read-only, disk full).
 class _OutputFailure implements Exception {
   final String reason;
@@ -60,7 +90,7 @@ class Exporter {
   final Renderer renderer;
   final int maxDecodeEdge; // 8192 on Windows, 4096 on Android
 
-  /// Loads the logo / frame images a template needs. Images are disposed by the exporter.
+  /// The logo / frame images a template needs. They stay owned by the caller.
   final Future<Map<String, ui.Image>> Function(Template template)? loadAssets;
 
   /// Android: hands each finished file to the gallery; the file is then deleted.
@@ -119,12 +149,7 @@ class Exporter {
 
   Future<void> _exportOne(RenderSpec spec, ExportSettings s, String name, int index, int total) async {
     final item = spec.item;
-    final crop = effectiveCrop(
-      orientedSize(item.width, item.height, item.quarterTurns),
-      spec.shape.aspect,
-      item.crop,
-      item.straighten,
-    );
+    final crop = specCrop(spec);
     // Decode only as large as the output needs; the codec downscales far better than we can.
     final needed = s.longEdge == null
         ? maxDecodeEdge
@@ -133,7 +158,6 @@ class Exporter {
 
     final Uint8List rgba;
     final int w, h;
-    var assets = const <String, ui.Image>{};
     try {
       final decoded = orientedSize(source.width, source.height, item.quarterTurns);
       final cw = crop.width * decoded.width, ch = crop.height * decoded.height;
@@ -141,26 +165,14 @@ class Exporter {
       final scale = s.longEdge == null ? 1.0 : math.min(1.0, s.longEdge! / math.max(cw, ch));
       w = math.max(1, (cw * scale).round());
       h = math.max(1, (ch * scale).round());
-      if (spec.template != null && loadAssets != null) assets = await loadAssets!(spec.template!);
+      final assets = spec.template != null && loadAssets != null
+          ? await loadAssets!(spec.template!)
+          : const <String, ui.Image>{};
       rgba = await renderer.renderRgba(
-        RenderJob(
-          source: source,
-          edit: item.edit,
-          quarterTurns: item.quarterTurns,
-          straighten: item.straighten,
-          crop: crop,
-          outputSize: ui.Size(w.toDouble(), h.toDouble()),
-          template: spec.template,
-          assets: assets,
-          creditText: spec.creditText,
-          credit: spec.credit,
-        ),
+        jobFromSpec(spec, source, ui.Size(w.toDouble(), h.toDouble()), assets),
       );
     } finally {
       source.dispose();
-      for (final a in assets.values) {
-        a.dispose();
-      }
     }
 
     final quality = s.quality.clamp(60, 100);

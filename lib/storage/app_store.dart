@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:path_provider/path_provider.dart';
 
 import '../engine/decode.dart';
 import '../models/preset.dart';
+import '../models/template.dart';
 
 /// The text of a `.pfpreset` file.
 String encodePreset(Preset p) =>
@@ -35,6 +37,7 @@ class AppStore {
     final cache = Directory(cacheDir ?? (await getApplicationCacheDirectory()).path);
     await support.create(recursive: true);
     await Directory('${cache.path}/thumbs').create(recursive: true);
+    await Directory('${support.path}/assets').create(recursive: true);
     return AppStore._(support, cache);
   }
 
@@ -167,10 +170,93 @@ class AppStore {
     return preset;
   }
 
-  /// FNV-1a, enough to turn a path into a file name.
-  static String _hash(String s) {
+  // ---- Templates and their images ----
+
+  Future<List<Template>> loadTemplates() async {
+    final out = <Template>[];
+    for (final e in await _readList('templates.json')) {
+      try {
+        out.add(Template.fromJson(e as Map<String, dynamic>));
+      } on Object {
+        // one bad entry does not hide the others
+      }
+    }
+    return out;
+  }
+
+  /// Adds the template, or replaces the saved one with the same name.
+  Future<void> saveTemplate(Template t) async {
+    final all = await loadTemplates();
+    final i = all.indexWhere((e) => e.name == t.name);
+    i < 0 ? all.add(t) : all[i] = t;
+    await _writeList('templates.json', [for (final e in all) e.toJson()]);
+  }
+
+  Future<void> deleteTemplate(String name) async {
+    final all = await loadTemplates();
+    await _writeList('templates.json', [
+      for (final e in all)
+        if (e.name != name) e.toJson(),
+    ]);
+  }
+
+  /// True for a plain file name that can only point inside the assets folder.
+  static bool isSafeAssetName(String name) =>
+      RegExp(r'^[A-Za-z0-9_-]{1,80}\.png$').hasMatch(name);
+
+  File assetFile(String name) {
+    if (!isSafeAssetName(name)) throw DecodeFailure(name, 'Not a valid asset name');
+    return File('${support.path}/assets/$name');
+  }
+
+  /// Copies a PNG into the assets folder under a name made from its content, so the same
+  /// picture is stored once. Throws [FormatException] if the file is not a whole PNG.
+  Future<String> importAsset(String pngPath) async {
+    final Uint8List bytes;
+    try {
+      bytes = await File(pngPath).readAsBytes();
+    } on FileSystemException catch (e) {
+      throw FormatException('Cannot read the file (${e.message})');
+    }
+    return storeAssetBytes(bytes);
+  }
+
+  /// Validates [bytes] as a PNG and stores them. Used by [importAsset] and kit import.
+  Future<String> storeAssetBytes(Uint8List bytes) async {
+    if (!isWholePng(bytes)) throw const FormatException('Not a PNG image');
+    final name = '${_hashBytes(bytes)}.png';
+    final file = assetFile(name);
+    if (!file.existsSync()) {
+      final tmp = File('${file.path}.tmp');
+      await tmp.writeAsBytes(bytes, flush: true);
+      await tmp.rename(file.path);
+    }
+    return name;
+  }
+
+  /// PNG signature, a sane IHDR and an IEND chunk at the end.
+  static bool isWholePng(Uint8List b) {
+    const signature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    if (b.length < 45) return false;
+    for (var i = 0; i < 8; i++) {
+      if (b[i] != signature[i]) return false;
+    }
+    final data = ByteData.sublistView(b);
+    if (String.fromCharCodes(b, 12, 16) != 'IHDR') return false;
+    final w = data.getUint32(16), h = data.getUint32(20);
+    if (w == 0 || h == 0 || w > 20000 || h > 20000) return false;
+    return String.fromCharCodes(b, b.length - 8, b.length - 4) == 'IEND';
+  }
+
+  Future<ui.Image> asset(String file, {int maxLongEdge = 4096}) =>
+      decodeImage(assetFile(file).path, maxLongEdge: maxLongEdge);
+
+  /// FNV-1a, enough to turn a path or a file's content into a file name.
+  static String _hash(String s) => _hashBytes(utf8.encode(s));
+
+  static String _hashBytes(List<int> bytes) {
     var h = 0xcbf29ce484222325;
-    for (final byte in utf8.encode(s)) {
+    for (final byte in bytes) {
       h = (h ^ byte) * 0x100000001b3;
     }
     return h.toRadixString(16).replaceFirst('-', 'n');
