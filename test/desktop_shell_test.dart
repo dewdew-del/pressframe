@@ -33,26 +33,26 @@ Future<void> ctrl(WidgetTester tester, LogicalKeyboardKey key) async {
 const brightness = ValueKey('slider-Brightness');
 
 void main() {
-  testWidgets('shows the everyday sliders; the rest sit under More controls', (tester) async {
+  testWidgets('every slider is always shown; there is no More controls row', (tester) async {
     await pumpShell(tester);
-    for (final label in ['Brightness', 'Contrast', 'Shadows', 'Warmth', 'Saturation', 'Sharpen']) {
-      expect(find.text(label), findsOneWidget, reason: label);
-      expect(find.byKey(ValueKey('slider-$label')), findsOneWidget, reason: label);
+    for (final label in [
+      'Brightness', 'Contrast', 'Shadows', 'Highlights', 'Whites', 'Blacks', //
+      'Warmth', 'Saturation', 'Tint', 'Vibrance', 'Sharpen', 'Texture', 'Clarity',
+    ]) {
+      expect(find.byKey(ValueKey('slider-$label'), skipOffstage: false), findsOneWidget, reason: label);
     }
-    for (final hidden in ['Highlights', 'Whites', 'Blacks', 'Tint', 'Vibrance', 'Texture', 'Clarity']) {
-      expect(find.text(hidden), findsNothing, reason: hidden);
-    }
+    expect(find.text('More controls', skipOffstage: false), findsNothing);
     expect(find.text('Auto fix'), findsNothing);
     expect(find.text('Exposure'), findsNothing);
     expect(find.text('Temperature'), findsNothing);
+  });
 
-    await tester.tap(find.byKey(const ValueKey('more-Light')));
-    await tester.pumpAndSettle();
-    for (final shown in ['Highlights', 'Whites', 'Blacks']) {
-      expect(find.text(shown), findsOneWidget, reason: shown);
+  testWidgets('no step label is underlined', (tester) async {
+    await pumpShell(tester);
+    for (final step in ['1 Edit', '2 Review', '3 Export']) {
+      expect(tester.widget<Text>(find.text(step)).style!.decoration, isNull, reason: step);
     }
-    expect(find.text('Tint'), findsNothing);
-    expect(tester.getSize(find.byKey(const ValueKey('more-Light'))).height, greaterThanOrEqualTo(44));
+    expect(tester.widget<Text>(find.text('1 Edit')).style!.fontWeight, FontWeight.w700);
   });
 
   testWidgets('values read as whole numbers, Brightness with two decimals', (tester) async {
@@ -188,8 +188,9 @@ void main() {
     await pumpShell(tester, photos: 0);
     expect(find.byKey(const ValueKey('app-logo')), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Add photos'), findsOneWidget);
+    expect(find.text('or drop photos or a folder here'), findsOneWidget);
     for (final line in ['1 Edit one photo', '2 Review the batch', '3 Export all']) {
-      expect(find.text(line), findsOneWidget, reason: line);
+      expect(find.text(line), findsNothing, reason: line);
     }
     expect(find.text('Before / After'), findsNothing);
   });

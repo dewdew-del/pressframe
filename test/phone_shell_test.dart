@@ -162,7 +162,7 @@ void main() {
     await pumpApp(tester, phone, photos: 0);
     expect(find.widgetWithText(FilledButton, 'Add photos'), findsOneWidget);
     for (final line in ['1 Edit one photo', '2 Review the batch', '3 Export all']) {
-      expect(find.text(line), findsOneWidget, reason: line);
+      expect(find.text(line), findsNothing, reason: line);
     }
   });
 

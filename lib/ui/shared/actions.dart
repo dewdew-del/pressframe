@@ -179,7 +179,7 @@ class AppActions {
   }
 }
 
-/// The first screen, before any photo is added: one big way in and the three steps.
+/// The first screen, before any photo is added: one big way in.
 class EmptyState extends StatelessWidget {
   final VoidCallback onAdd;
   final bool canDrop; // laptop: photos can also be dropped on the window
@@ -214,12 +214,6 @@ class EmptyState extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          for (final step in const ['1 Edit one photo', '2 Review the batch', '3 Export all'])
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Text(step, style: const TextStyle(color: hintColor)),
-            ),
         ],
       ),
     ),

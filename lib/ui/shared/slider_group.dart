@@ -26,7 +26,7 @@ class SliderSpec {
   }
 }
 
-// Plain names first ("Brightness", "Warmth"); the exact ones sit under "More controls".
+// Plain names first ("Brightness", "Warmth"); the exact ones follow them.
 final lightSliders = [
   SliderSpec('Brightness', -2, 2, (e) => e.exposure, (e, v) => e.copyWith(exposure: v), stops: true),
   SliderSpec('Contrast', -1, 1, (e) => e.contrast, (e, v) => e.copyWith(contrast: v)),
@@ -67,9 +67,8 @@ final detailMore = [
   SliderSpec('Clarity', -1, 1, (e) => e.clarity, (e, v) => e.copyWith(clarity: v)),
 ];
 
-/// A group of edit sliders bound to the selected photo, with the less-used ones behind a
-/// "More controls" row that starts closed.
-class SliderGroup extends StatefulWidget {
+/// A group of edit sliders bound to the selected photo: the everyday ones, then [more].
+class SliderGroup extends StatelessWidget {
   final Session session;
   final String name; // "Light", "Color", "Detail"
   final List<SliderSpec> sliders;
@@ -83,15 +82,8 @@ class SliderGroup extends StatefulWidget {
     this.more = const [],
   });
 
-  @override
-  State<SliderGroup> createState() => _SliderGroupState();
-}
-
-class _SliderGroupState extends State<SliderGroup> {
-  bool _open = false;
-
   Widget _slider(SliderSpec s) {
-    final session = widget.session, item = session.selected;
+    final item = session.selected;
     return LabeledSlider(
       label: s.label,
       min: s.min,
@@ -108,36 +100,11 @@ class _SliderGroupState extends State<SliderGroup> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: widget.session,
+    listenable: session,
     builder: (context, _) => Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final s in widget.sliders) _slider(s),
-        if (widget.more.isNotEmpty)
-          Semantics(
-            button: true,
-            expanded: _open,
-            child: InkWell(
-              key: ValueKey('more-${widget.name}'),
-              onTap: () => setState(() => _open = !_open),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    children: [
-                      Text('More controls', style: TextStyle(fontSize: 13, color: hintColor)),
-                      Icon(_open ? Icons.expand_less : Icons.expand_more, size: 18, color: hintColor),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        if (_open)
-          for (final s in widget.more) _slider(s),
-      ],
+      children: [for (final s in [...sliders, ...more]) _slider(s)],
     ),
   );
 }

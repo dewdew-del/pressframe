@@ -353,14 +353,13 @@ class _DesktopShellState extends State<DesktopShell> {
     ),
   );
 
-  // The current step is bold and underlined, so it reads without relying on color alone.
+  // The current step is bold, so it reads without relying on color alone.
   Widget _stepButton(String label, bool active, VoidCallback? onPressed) => TextButton(
     onPressed: onPressed,
     child: Text(
       label,
       style: TextStyle(
         color: onPressed == null ? null : (active ? accentColor : textColor),
-        decoration: active ? TextDecoration.underline : null,
         fontWeight: active ? FontWeight.w700 : FontWeight.w400,
       ),
     ),

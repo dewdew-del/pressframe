@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../export/exporter.dart';
+import '../../export/filename.dart';
 import '../../session.dart';
 import 'slider_group.dart';
 
@@ -19,6 +21,10 @@ String exportResultText(ExportProgress p, {required bool gallery}) {
   }
   return '${p.cancelled ? 'Cancelled' : 'Finished'}: ${p.done - p.failures.length} of ${p.total} exported';
 }
+
+/// Where the photos go: [dir] itself, or a folder inside it named after the event.
+String exportFolder(String dir, String eventName, {required bool newFolder}) =>
+    newFolder ? '$dir${Platform.pathSeparator}${sanitizeEventName(eventName)}' : dir;
 
 /// Export settings, progress and the list of failures.
 /// Shown in a dialog on the laptop and as a full page on the phone.
@@ -48,9 +54,8 @@ class ExportSheet extends StatefulWidget {
 
 class _ExportSheetState extends State<ExportSheet> {
   final _name = TextEditingController(text: 'Event');
-  final _longEdge = TextEditingController(text: '2048');
   double _quality = 90;
-  bool _fullSize = false;
+  bool _newFolder = true; // laptop: export into a folder named after the event
   String? _outDir;
   ExportProgress? _progress;
   StreamSubscription<ExportProgress>? _running;
@@ -59,26 +64,38 @@ class _ExportSheetState extends State<ExportSheet> {
   void initState() {
     super.initState();
     _outDir = widget.fixedOutDir;
+    if (_outDir == null) _useDownloads();
   }
+
+  // Laptop: Downloads is where exports go until another folder is chosen.
+  Future<void> _useDownloads() async {
+    try {
+      final dir = await getDownloadsDirectory();
+      if (dir != null && mounted && _outDir == null) setState(() => _outDir = dir.path);
+    } on Object {
+      // No Downloads folder known: the user picks one with "Change…".
+    }
+  }
+
+  /// The folder the files are written to (the exporter creates it when missing).
+  String? get _target => _outDir == null || widget.fixedOutDir != null
+      ? _outDir
+      : exportFolder(_outDir!, _name.text, newFolder: _newFolder);
 
   @override
   void dispose() {
     widget.exporter?.cancel(); // closing the dialog stops the export cleanly
     _running?.cancel();
     _name.dispose();
-    _longEdge.dispose();
     super.dispose();
   }
-
-  int? get _edge => int.tryParse(_longEdge.text);
-  bool get _edgeOk => _fullSize || (_edge != null && _edge! >= 100 && _edge! <= 20000);
 
   void _start() {
     final settings = ExportSettings(
       eventName: _name.text,
-      outDir: _outDir!,
+      outDir: _target!,
       quality: _quality.round(),
-      longEdge: _fullSize ? null : _edge,
+      longEdge: null, // always the photo's own size after the crop
     );
     setState(() {
       _progress = const ExportProgress(done: 0, total: 0);
@@ -96,7 +113,7 @@ class _ExportSheetState extends State<ExportSheet> {
     final busy = _running != null;
     final p = _progress;
     final canExport =
-        widget.exporter != null && !busy && count > 0 && _outDir != null && _edgeOk;
+        widget.exporter != null && !busy && count > 0 && _outDir != null;
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -131,14 +148,23 @@ class _ExportSheetState extends State<ExportSheet> {
             TextField(
               controller: _name,
               enabled: !busy,
+              onChanged: (_) => setState(() {}), // the folder name follows the event name
               decoration: const InputDecoration(labelText: 'Event name'),
             ),
             const SizedBox(height: 12),
             if (widget.fixedOutDir != null)
               const Text('Saves to your gallery, album "PressFrame".')
-            else
+            else ...[
               Row(
                 children: [
+                  Expanded(
+                    child: Text(
+                      _target == null ? 'No folder chosen' : 'Saves to: $_target',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   OutlinedButton(
                     onPressed: busy
                         ? null
@@ -148,15 +174,19 @@ class _ExportSheetState extends State<ExportSheet> {
                             );
                             if (dir != null && mounted) setState(() => _outDir = dir);
                           },
-                    child: const Text('Choose folder'),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(_outDir ?? 'No folder chosen', overflow: TextOverflow.ellipsis),
+                    child: const Text('Change…'),
                   ),
                 ],
               ),
-            // Size and quality have good defaults, so they stay folded away.
+              CheckboxListTile(
+                value: _newFolder,
+                onChanged: busy ? null : (v) => setState(() => _newFolder = v!),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('Make a new folder named after the event'),
+              ),
+            ],
+            // Quality has a good default, so it stays folded away.
             ExpansionTile(
               title: const Text('More options'),
               tilePadding: EdgeInsets.zero,
@@ -171,30 +201,6 @@ class _ExportSheetState extends State<ExportSheet> {
               format: (v) => v.round().toString(),
               onChanged: (v) => setState(() => _quality = v),
               onChangeEnd: (v) => setState(() => _quality = v),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    key: const ValueKey('long-edge'),
-                    controller: _longEdge,
-                    enabled: !busy && !_fullSize,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      labelText: 'Long edge (px)',
-                      errorText: _edgeOk ? null : 'Enter 100 to 20000',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                const Text('Full size'),
-                Switch(
-                  value: _fullSize,
-                  onChanged: busy ? null : (v) => setState(() => _fullSize = v),
-                ),
-              ],
             ),
               ],
             ),

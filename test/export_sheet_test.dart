@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pressframe/models/batch_item.dart';
@@ -64,10 +66,28 @@ void main() {
     expect(find.text('1 photo will be exported'), findsOneWidget);
   });
 
-  testWidgets('Export stays off until a folder is chosen', (tester) async {
+  test('the new folder is named after the event, with unsafe characters removed', () {
+    final sep = Platform.pathSeparator;
+    expect(exportFolder('D', 'Intrams: Day 1/2?', newFolder: true), 'D${sep}Intrams Day 12');
+    expect(exportFolder('D', '', newFolder: true), 'D${sep}Event');
+    expect(exportFolder('D', 'Intrams', newFolder: false), 'D');
+  });
+
+  testWidgets('laptop: a folder can be changed and a new folder is offered', (tester) async {
+    // No Downloads folder is known in a widget test, so Export stays off until one is chosen.
     await pump(tester, Session()..addItems([jpg]));
+    await tester.pump();
     expect(exportButton(tester).onPressed, isNull);
-    expect(find.text('Choose folder'), findsOneWidget);
+    expect(find.text('No folder chosen'), findsOneWidget);
+    expect(find.text('Change…'), findsOneWidget);
+    expect(tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value, true);
+    expect(find.text('Make a new folder named after the event'), findsOneWidget);
+  });
+
+  testWidgets('phone: the gallery is the only place, so no folder controls', (tester) async {
+    await pump(tester, Session()..addItems([jpg]), fixedOutDir: 'x');
+    expect(find.text('Change…'), findsNothing);
+    expect(find.byType(CheckboxListTile), findsNothing);
   });
 
   testWidgets('nothing to export is said plainly', (tester) async {
@@ -76,15 +96,13 @@ void main() {
     expect(exportButton(tester).onPressed, isNull);
   });
 
-  testWidgets('Full size turns the long edge field off', (tester) async {
+  testWidgets('no size controls: photos export at their own size', (tester) async {
     await pump(tester, Session()..addItems([jpg]));
-    TextField field() => tester.widget<TextField>(find.byKey(const ValueKey('long-edge')));
-    expect(find.byKey(const ValueKey('long-edge')), findsNothing); // folded away by default
     await tester.tap(find.text('More options'));
     await tester.pumpAndSettle();
-    expect(field().enabled, true);
-    await tester.tap(find.byType(Switch));
-    await tester.pump();
-    expect(field().enabled, false);
+    expect(find.text('JPEG quality'), findsOneWidget);
+    expect(find.text('Long edge (px)'), findsNothing);
+    expect(find.text('Full size'), findsNothing);
+    expect(find.byType(Switch), findsNothing);
   });
 }
