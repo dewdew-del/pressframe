@@ -30,12 +30,16 @@ class ExportSheet extends StatefulWidget {
   /// Android: exports go through this folder into the gallery, so there is no folder picker.
   final String? fixedOutDir;
 
+  /// Phone: the sheet is a page two steps away from Edit; this jumps straight back.
+  final VoidCallback? onBackToEdit;
+
   const ExportSheet({
     super.key,
     required this.session,
     required this.exporter,
     required this.specs,
     this.fixedOutDir,
+    this.onBackToEdit,
   });
 
   @override
@@ -101,9 +105,8 @@ class _ExportSheetState extends State<ExportSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Export', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 4),
             Text(
+              style: Theme.of(context).textTheme.titleMedium,
               count == 0
                   ? 'There are no photos to export.'
                   : '$count photo${count == 1 ? '' : 's'} will be exported',
@@ -128,12 +131,36 @@ class _ExportSheetState extends State<ExportSheet> {
             TextField(
               controller: _name,
               enabled: !busy,
-              decoration: const InputDecoration(
-                labelText: 'Event name',
-                helperText: 'Files are named EventName_001.jpg',
-              ),
+              decoration: const InputDecoration(labelText: 'Event name'),
             ),
             const SizedBox(height: 12),
+            if (widget.fixedOutDir != null)
+              const Text('Saves to your gallery, album "PressFrame".')
+            else
+              Row(
+                children: [
+                  OutlinedButton(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            final dir = await FilePicker.getDirectoryPath(
+                              dialogTitle: 'Choose the export folder',
+                            );
+                            if (dir != null && mounted) setState(() => _outDir = dir);
+                          },
+                    child: const Text('Choose folder'),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(_outDir ?? 'No folder chosen', overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            // Size and quality have good defaults, so they stay folded away.
+            ExpansionTile(
+              title: const Text('More options'),
+              tilePadding: EdgeInsets.zero,
+              children: [
             LabeledSlider(
               label: 'JPEG quality',
               min: 60,
@@ -169,29 +196,8 @@ class _ExportSheetState extends State<ExportSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            if (widget.fixedOutDir != null)
-              const Text('Photos are saved to the gallery album "PressFrame".')
-            else
-              Row(
-                children: [
-                  OutlinedButton(
-                    onPressed: busy
-                        ? null
-                        : () async {
-                            final dir = await FilePicker.getDirectoryPath(
-                              dialogTitle: 'Choose the export folder',
-                            );
-                            if (dir != null && mounted) setState(() => _outDir = dir);
-                          },
-                    child: const Text('Choose folder'),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(_outDir ?? 'No folder chosen', overflow: TextOverflow.ellipsis),
-                  ),
-                ],
-              ),
+              ],
+            ),
             if (p != null && p.total > 0) ...[
               const SizedBox(height: 16),
               LinearProgressIndicator(value: p.done / p.total),
@@ -224,12 +230,14 @@ class _ExportSheetState extends State<ExportSheet> {
                 ),
             ],
             const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              alignment: WrapAlignment.end,
               children: [
                 TextButton(
-                  onPressed: busy ? widget.exporter?.cancel : () => Navigator.of(context).maybePop(),
-                  child: Text(busy ? 'Cancel' : 'Close'),
+                  onPressed: busy
+                      ? widget.exporter?.cancel
+                      : widget.onBackToEdit ?? () => Navigator.of(context).maybePop(),
+                  child: Text(busy ? 'Cancel' : (widget.onBackToEdit != null ? 'Back to editing' : 'Close')),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(onPressed: canExport ? _start : null, child: const Text('Export')),

@@ -104,6 +104,7 @@ class _PhoneShellState extends State<PhoneShell> {
       specs: actions.specs,
       exporter: actions.exporter(),
       fixedOutDir: staging,
+      onBackToEdit: () => Navigator.of(context).popUntil((route) => route.isFirst),
     );
     await _page<void>(
       'Export',
@@ -197,7 +198,7 @@ class _PhoneShellState extends State<PhoneShell> {
                 child: Material(
                   color: panelColor,
                   child: SingleChildScrollView(
-                    key: PageStorageKey(_tab),
+                    key: ValueKey(_tab),
                     padding: const EdgeInsets.only(top: 8),
                     child: _tools(),
                   ),

@@ -79,6 +79,9 @@ void main() {
   testWidgets('Full size turns the long edge field off', (tester) async {
     await pump(tester, Session()..addItems([jpg]));
     TextField field() => tester.widget<TextField>(find.byKey(const ValueKey('long-edge')));
+    expect(find.byKey(const ValueKey('long-edge')), findsNothing); // folded away by default
+    await tester.tap(find.text('More options'));
+    await tester.pumpAndSettle();
     expect(field().enabled, true);
     await tester.tap(find.byType(Switch));
     await tester.pump();

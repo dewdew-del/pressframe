@@ -152,6 +152,30 @@ void main() {
     }
   });
 
+  testWidgets('the Light tools survive a scroll and a tab switch', (tester) async {
+    await pumpApp(tester, phone);
+    await tester.drag(find.text('Contrast'), const Offset(0, -80));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-Color')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-Light')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Presets'), findsOneWidget);
+  });
+
+  testWidgets('the Export page goes straight back to editing', (tester) async {
+    await pumpApp(tester, phone);
+    await tester.tap(find.text('Next →'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Next →'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Back to editing'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('tab-Light')).hitTestable(), findsOneWidget);
+    expect(find.text('Back to editing'), findsNothing);
+  });
+
   testWidgets('Back asks first, then returns to the Add photos screen', (tester) async {
     final session = await pumpApp(tester, phone);
     await tester.tap(find.byTooltip('Back'));
