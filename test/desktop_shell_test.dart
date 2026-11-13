@@ -173,6 +173,17 @@ void main() {
     expect(find.text('Scroll to zoom, drag to move.'), findsOneWidget);
   });
 
+  testWidgets('Presets start minimized and open from their header', (tester) async {
+    await pumpShell(tester);
+    expect(find.text('Indoor gym'), findsNothing);
+    await tester.tap(find.text('Presets'));
+    await tester.pumpAndSettle();
+    expect(find.text('Indoor gym'), findsOneWidget);
+    await tester.tap(find.text('Presets'));
+    await tester.pumpAndSettle();
+    expect(find.text('Indoor gym'), findsNothing);
+  });
+
   testWidgets('with no photos the first screen says how to start', (tester) async {
     await pumpShell(tester, photos: 0);
     expect(find.byKey(const ValueKey('app-logo')), findsOneWidget);

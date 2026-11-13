@@ -225,20 +225,13 @@ class _DesktopShellState extends State<DesktopShell> {
         top: 8,
         right: 8,
         child: ListenableBuilder(
-          listenable: Listenable.merge([session, session.showBefore]),
+          listenable: session,
           builder: (context, _) => Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Tooltip(
-                message: 'Show the photo before editing (or hold \\)',
-                child: FilledButton.tonal(
-                  onPressed: () => session.showBefore.value = !session.showBefore.value,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: session.showBefore.value ? accentColor : const Color(0xCC2A2A2A),
-                    foregroundColor: session.showBefore.value ? const Color(0xFF0B1A2B) : textColor,
-                  ),
-                  child: const Text('Before / After'),
-                ),
+              BeforeAfterButton(
+                session: session,
+                tooltip: 'Show the photo before editing (or hold \\)',
               ),
               const SizedBox(width: 8),
               Material(
@@ -392,7 +385,7 @@ class _DesktopShellState extends State<DesktopShell> {
         children: [
           _section('Presets', [
             PresetPanel(key: ValueKey(_kitImports), session: session, store: widget.store),
-          ]),
+          ], open: false),
           _section('Light', [
             SliderGroup(session: session, name: 'Light', sliders: lightSliders, more: lightMore),
           ]),

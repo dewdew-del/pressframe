@@ -10,6 +10,7 @@ import '../../models/batch_item.dart';
 import '../../models/edit_params.dart';
 import '../../session.dart';
 import '../../storage/template_library.dart';
+import '../theme.dart';
 
 /// The crop a photo will be exported with (normalized, on the rotated photo).
 Rect exportCrop(BatchItem item, double? aspect) => effectiveCrop(
@@ -210,6 +211,29 @@ class _PreviewViewState extends State<PreviewView> {
       },
     );
   }
+}
+
+/// Floating button on the photo: tap to see the unedited photo, tap again for the edit.
+class BeforeAfterButton extends StatelessWidget {
+  final Session session;
+  final String tooltip;
+  const BeforeAfterButton({super.key, required this.session, required this.tooltip});
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: session.showBefore,
+    builder: (context, before, _) => Tooltip(
+      message: tooltip,
+      child: FilledButton.tonal(
+        onPressed: () => session.showBefore.value = !session.showBefore.value,
+        style: FilledButton.styleFrom(
+          backgroundColor: before ? accentColor : const Color(0xCC2A2A2A),
+          foregroundColor: before ? const Color(0xFF0B1A2B) : textColor,
+        ),
+        child: const Text('Before / After'),
+      ),
+    ),
+  );
 }
 
 class _PreviewPainter extends CustomPainter {

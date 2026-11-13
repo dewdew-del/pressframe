@@ -65,6 +65,20 @@ void main() {
     expect(find.text('Rotate right'), findsOneWidget);
   });
 
+  testWidgets('a visible Before / After button on the photo, hidden while cropping', (tester) async {
+    final session = await pumpApp(tester, phone);
+    final button = find.widgetWithText(FilledButton, 'Before / After');
+    expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
+    await tester.tap(button);
+    expect(session.showBefore.value, true);
+    await tester.tap(button);
+    expect(session.showBefore.value, false);
+
+    await tester.tap(find.byKey(const ValueKey('tab-Crop')));
+    await tester.pumpAndSettle();
+    expect(button, findsNothing);
+  });
+
   testWidgets('tabs are at least 44 px tall with 14 px text', (tester) async {
     await pumpApp(tester, phone);
     for (final t in tabs) {

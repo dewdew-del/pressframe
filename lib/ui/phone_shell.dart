@@ -180,13 +180,27 @@ class _PhoneShellState extends State<PhoneShell> {
               Expanded(
                 child: _tab == _Tab.crop
                     ? CropView(session: session, renderer: widget.renderer, longEdge: actions.previewEdge)
-                    : PreviewView(
-                        session: session,
-                        renderer: widget.renderer,
-                        library: widget.library,
-                        longEdge: actions.previewEdge,
-                        onSwipeUp: () => session.setFlag(Flag.pick),
-                        onSwipeDown: () => session.setFlag(Flag.reject),
+                    : Stack(
+                        children: [
+                          Positioned.fill(
+                            child: PreviewView(
+                              session: session,
+                              renderer: widget.renderer,
+                              library: widget.library,
+                              longEdge: actions.previewEdge,
+                              onSwipeUp: () => session.setFlag(Flag.pick),
+                              onSwipeDown: () => session.setFlag(Flag.reject),
+                            ),
+                          ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: BeforeAfterButton(
+                              session: session,
+                              tooltip: 'Show the photo before editing (or hold the photo)',
+                            ),
+                          ),
+                        ],
                       ),
               ),
               Container(
