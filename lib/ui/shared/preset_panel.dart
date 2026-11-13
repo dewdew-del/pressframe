@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../models/preset.dart';
 import '../../session.dart';
 import '../../storage/app_store.dart';
+import '../theme.dart';
 
 /// Built-in and saved presets. Tapping one sets the sliders as a single undo step.
 class PresetPanel extends StatefulWidget {
@@ -19,6 +20,7 @@ class PresetPanel extends StatefulWidget {
 
 class _PresetPanelState extends State<PresetPanel> {
   List<Preset> _saved = const [];
+  bool _options = false; // the Save current / ⋮ row is showing
 
   @override
   void initState() {
@@ -87,8 +89,25 @@ class _PresetPanelState extends State<PresetPanel> {
                   ActionChip(label: Text(p.name), onPressed: on ? () => _apply(p) : null),
               ],
             ),
-            const SizedBox(height: 8),
-            Wrap(
+            // Save, import, export and delete stay out of the way until asked for.
+            Semantics(
+              button: true,
+              expanded: _options,
+              child: InkWell(
+                key: const ValueKey('preset-options'),
+                onTap: () => setState(() => _options = !_options),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: Row(
+                    children: [
+                      const Text('Preset options', style: TextStyle(fontSize: 13, color: hintColor)),
+                      Icon(_options ? Icons.expand_less : Icons.expand_more, size: 18, color: hintColor),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (_options) Wrap(
               spacing: 8,
               children: [
                 OutlinedButton(

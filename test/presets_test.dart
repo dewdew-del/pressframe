@@ -112,6 +112,12 @@ void main() {
     expect(session.selected!.straighten, 3, reason: 'crop and straighten are not part of a preset');
     session.undo();
     expect(session.selected!.edit, EditParams.neutral);
+    // Save current and the ⋮ menu are hidden until "Preset options" is opened.
+    expect(find.text('Save current'), findsNothing);
+    expect(find.byTooltip('More preset actions'), findsNothing);
+    expect(tester.getSize(find.byKey(const ValueKey('preset-options'))).height, greaterThanOrEqualTo(48));
+    await tester.tap(find.text('Preset options'));
+    await tester.pump();
     expect(find.text('Save current'), findsOneWidget);
     expect(find.text('Import preset'), findsNothing);
     await tester.tap(find.byTooltip('More preset actions'));
