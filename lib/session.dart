@@ -155,6 +155,16 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Drops every photo and its edit history; batch choices (templates, shapes, credit) stay.
+  void clear() {
+    _items.clear();
+    _undo.clear();
+    _redo.clear();
+    _selected = 0;
+    _dragStart = null;
+    notifyListeners();
+  }
+
   /// Adds the photos behind [paths] and returns the files that could not be read.
   Future<List<String>> import(List<String> paths) async {
     final result = await importPaths(paths, existing: {for (final i in _items) i.path});

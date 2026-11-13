@@ -132,8 +132,41 @@ class _PhoneShellState extends State<PhoneShell> {
     if (await actions.importKit(context) && mounted) setState(() => _kitImports++);
   }
 
+  /// Back from Edit: asks, then drops the batch and shows the Add photos screen again.
+  Future<void> _startOver() async {
+    final n = session.items.length;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel editing?'),
+        content: Text(
+          'Your edits to ${n == 1 ? 'this photo' : 'these $n photos'} will be lost. '
+          'The original photos are not changed.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep editing')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Cancel editing')),
+        ],
+      ),
+    );
+    if (yes == true) session.clear();
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: session,
+    // The phone's own back button asks too, instead of closing the app mid-edit.
+    builder: (context, child) => PopScope(
+      canPop: session.items.isEmpty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _startOver();
+      },
+      child: child!,
+    ),
+    child: _scaffold(),
+  );
+
+  Widget _scaffold() => Scaffold(
     body: SafeArea(
       child: ListenableBuilder(
         listenable: session,
@@ -187,8 +220,11 @@ class _PhoneShellState extends State<PhoneShell> {
       height: 48,
       child: Row(
         children: [
-          // Edit is the first step, so there is nowhere to go back to from here.
-          const IconButton(tooltip: 'Back', onPressed: null, icon: Icon(Icons.arrow_back)),
+          IconButton(
+            tooltip: 'Back',
+            onPressed: has ? _startOver : null,
+            icon: const Icon(Icons.arrow_back),
+          ),
           Expanded(
             child: Center(
               child: Text(has ? '${session.selectedIndex + 1} / ${session.items.length}' : 'PressFrame'),
@@ -265,11 +301,14 @@ class _PhoneShellState extends State<PhoneShell> {
   }
 
   Widget _tools() => switch (_tab) {
-    // Presets first, the everyday light sliders, then detail at the bottom.
+    // Presets folded away, the everyday light sliders, then detail at the bottom.
     _Tab.light => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PresetPanel(key: ValueKey(_kitImports), session: session, store: widget.store),
+        ExpansionTile(
+          title: const Text('Presets'),
+          children: [PresetPanel(key: ValueKey(_kitImports), session: session, store: widget.store)],
+        ),
         SliderGroup(session: session, name: 'Light', sliders: lightSliders, more: lightMore),
         const Divider(),
         SliderGroup(session: session, name: 'Detail', sliders: detailSliders, more: detailMore),

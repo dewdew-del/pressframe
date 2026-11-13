@@ -8,6 +8,18 @@ import '../../export/exporter.dart';
 import '../../session.dart';
 import 'slider_group.dart';
 
+bool exportSucceeded(ExportProgress p) => p.finished && !p.cancelled && p.failures.isEmpty;
+
+/// The line under the progress bar. [gallery] = photos go to the phone's gallery album.
+String exportResultText(ExportProgress p, {required bool gallery}) {
+  if (!p.finished) return 'Exporting ${p.done} of ${p.total}…';
+  if (exportSucceeded(p)) {
+    return 'Export successful! ${p.total} photo${p.total == 1 ? '' : 's'} saved'
+        '${gallery ? ' to the gallery album "PressFrame"' : ''}.';
+  }
+  return '${p.cancelled ? 'Cancelled' : 'Finished'}: ${p.done - p.failures.length} of ${p.total} exported';
+}
+
 /// Export settings, progress and the list of failures.
 /// Shown in a dialog on the laptop and as a full page on the phone.
 class ExportSheet extends StatefulWidget {
@@ -184,11 +196,19 @@ class _ExportSheetState extends State<ExportSheet> {
               const SizedBox(height: 16),
               LinearProgressIndicator(value: p.done / p.total),
               const SizedBox(height: 8),
-              Text(
-                p.finished
-                    ? '${p.cancelled ? 'Cancelled' : 'Finished'}: '
-                          '${p.done - p.failures.length} of ${p.total} exported'
-                    : 'Exporting ${p.done} of ${p.total}…',
+              Row(
+                children: [
+                  if (exportSucceeded(p)) ...[
+                    const Icon(Icons.check_circle, color: Colors.greenAccent),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: Text(
+                      exportResultText(p, gallery: widget.fixedOutDir != null),
+                      style: exportSucceeded(p) ? const TextStyle(fontWeight: FontWeight.w600) : null,
+                    ),
+                  ),
+                ],
               ),
             ],
             if (p != null && p.failures.isNotEmpty) ...[

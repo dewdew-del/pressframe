@@ -43,9 +43,14 @@ void main() {
     expect(find.byKey(const ValueKey('tab-Detail')), findsNothing);
     expect(find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('tab-')), findsNWidgets(4));
 
-    // Light is shown first: presets on top, then light, then detail at the bottom.
+    // Light is shown first: sliders right away, presets folded until "Presets" is tapped.
     expect(find.text('Brightness'), findsOneWidget);
+    expect(find.text('Indoor gym'), findsNothing);
+    await tester.tap(find.text('Presets'));
+    await tester.pumpAndSettle();
     expect(find.text('Indoor gym'), findsOneWidget);
+    await tester.tap(find.text('Presets'));
+    await tester.pumpAndSettle();
     expect(find.text('Sharpen'), findsOneWidget);
     expect(find.text('Auto fix'), findsNothing);
 
@@ -145,6 +150,25 @@ void main() {
     for (final line in ['1 Edit one photo', '2 Review the batch', '3 Export all']) {
       expect(find.text(line), findsOneWidget, reason: line);
     }
+  });
+
+  testWidgets('Back asks first, then returns to the Add photos screen', (tester) async {
+    final session = await pumpApp(tester, phone);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancel editing?'), findsOneWidget);
+    await tester.tap(find.text('Keep editing'));
+    await tester.pumpAndSettle();
+    expect(session.items.length, 3);
+
+    // The phone's own back button asks the same question.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Cancel editing'));
+    await tester.pumpAndSettle();
+    expect(session.items, isEmpty);
+    expect(session.canUndo, false);
+    expect(find.widgetWithText(FilledButton, 'Add photos'), findsOneWidget);
   });
 
   testWidgets('a denied gallery permission is explained, with a way forward', (tester) async {

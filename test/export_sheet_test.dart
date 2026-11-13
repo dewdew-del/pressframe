@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pressframe/models/batch_item.dart';
+import 'package:pressframe/export/exporter.dart';
 import 'package:pressframe/session.dart';
 import 'package:pressframe/ui/shared/export_sheet.dart';
 import 'package:pressframe/ui/theme.dart';
@@ -27,6 +28,21 @@ FilledButton exportButton(WidgetTester tester) =>
     tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Export'));
 
 void main() {
+  test('a finished export says so plainly', () {
+    const ok = ExportProgress(done: 3, total: 3, finished: true);
+    expect(exportResultText(ok, gallery: true), 'Export successful! 3 photos saved to the gallery album "PressFrame".');
+    expect(exportResultText(ok, gallery: false), 'Export successful! 3 photos saved.');
+    expect(
+      exportResultText(const ExportProgress(done: 1, total: 1, finished: true), gallery: false),
+      'Export successful! 1 photo saved.',
+    );
+    const partly = ExportProgress(done: 3, total: 3, finished: true, failures: [(path: 'x', reason: 'bad')]);
+    expect(exportResultText(partly, gallery: false), 'Finished: 2 of 3 exported');
+    const stopped = ExportProgress(done: 1, total: 3, finished: true, cancelled: true);
+    expect(exportResultText(stopped, gallery: false), 'Cancelled: 1 of 3 exported');
+    expect(exportResultText(const ExportProgress(done: 1, total: 3), gallery: false), 'Exporting 1 of 3…');
+  });
+
   test('smallPreview is a RAW under 2000 px', () {
     expect(smallRaw.smallPreview, true);
     expect(jpg.smallPreview, false);
