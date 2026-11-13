@@ -6,7 +6,16 @@ PressFrame is one Flutter app for Android and Windows, made for school publicati
 
 ## Screenshots
 
-Coming soon: the laptop layout and the phone layout.
+Laptop layout: edit one photo, then review the whole batch.
+
+![Edit screen on the laptop](docs/screenshots/laptop-edit.png)
+![Review screen on the laptop](docs/screenshots/laptop-review.png)
+
+Phone layout: the same tools in four tabs.
+
+<img src="docs/screenshots/phone-edit.png" alt="Edit screen on the phone" width="260"> <img src="docs/screenshots/phone-template.png" alt="Template tab on the phone" width="260">
+
+Sample photos in the screenshots are from [Unsplash](https://unsplash.com).
 
 ## Problem I solved
 
