@@ -76,20 +76,21 @@ void main() {
 
     await ctrl(tester, LogicalKeyboardKey.keyZ);
     expect(session.selected!.edit.exposure, 0);
-    expect(find.text('Undone. Redo?'), findsOneWidget);
+    expect(find.text('Undone. Redo?'), findsNothing, reason: 'undo shows no toast');
     await ctrl(tester, LogicalKeyboardKey.keyY);
     expect(session.selected!.edit.exposure, greaterThan(0));
     await tester.pump(const Duration(milliseconds: 500)); // let the double-tap timer run out
   });
 
-  testWidgets('the undo toast can redo', (tester) async {
+  testWidgets('the undo and redo buttons on the photo, with no toast', (tester) async {
     final session = await pumpShell(tester);
     session.setEdit(session.selected!.edit.copyWith(contrast: 0.5), commit: true);
     await tester.pump();
     await tester.tap(find.byTooltip('Undo (Ctrl+Z)'));
     await tester.pumpAndSettle();
     expect(session.selected!.edit.contrast, 0);
-    await tester.tap(find.text('Redo'));
+    expect(find.byType(SnackBar), findsNothing);
+    await tester.tap(find.byTooltip('Redo (Ctrl+Y)'));
     await tester.pump();
     expect(session.selected!.edit.contrast, 0.5);
   });

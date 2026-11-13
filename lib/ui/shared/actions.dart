@@ -65,21 +65,6 @@ class AppActions {
   void openAppSettings() =>
       const MethodChannel('pressframe/settings').invokeMethod<void>('open').ignore();
 
-  /// Undo with a short toast that offers to redo.
-  void undo(BuildContext context) {
-    if (!session.canUndo) return;
-    session.undo();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: const Text('Undone. Redo?'),
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(label: 'Redo', onPressed: session.redo),
-        ),
-      );
-  }
-
   static void say(BuildContext context, String message) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 

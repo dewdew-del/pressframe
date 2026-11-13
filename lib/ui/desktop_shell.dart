@@ -66,7 +66,7 @@ class _DesktopShellState extends State<DesktopShell> {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final ctrl = HardwareKeyboard.instance.isControlPressed;
     final action = switch ((ctrl, key)) {
-      (true, LogicalKeyboardKey.keyZ) => () => actions.undo(context),
+      (true, LogicalKeyboardKey.keyZ) => session.undo,
       (true, LogicalKeyboardKey.keyY) => session.redo,
       (true, LogicalKeyboardKey.keyC) => session.copyEdit,
       (true, LogicalKeyboardKey.keyV) => session.pasteEdit,
@@ -243,7 +243,7 @@ class _DesktopShellState extends State<DesktopShell> {
                   children: [
                     IconButton(
                       tooltip: 'Undo (Ctrl+Z)',
-                      onPressed: session.canUndo ? () => actions.undo(context) : null,
+                      onPressed: session.canUndo ? session.undo : null,
                       icon: const Icon(Icons.undo),
                     ),
                     IconButton(

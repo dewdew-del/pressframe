@@ -276,7 +276,7 @@ class _PhoneShellState extends State<PhoneShell> {
               const PopupMenuDivider(),
               PopupMenuItem(
                 enabled: session.canUndo,
-                value: () => actions.undo(context),
+                value: session.undo,
                 child: const Text('Undo'),
               ),
               PopupMenuItem(enabled: session.canRedo, value: session.redo, child: const Text('Redo')),
