@@ -175,6 +175,7 @@ void main() {
 
   testWidgets('with no photos the first screen says how to start', (tester) async {
     await pumpShell(tester, photos: 0);
+    expect(find.byKey(const ValueKey('app-logo')), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Add photos'), findsOneWidget);
     for (final line in ['1 Edit one photo', '2 Review the batch', '3 Export all']) {
       expect(find.text(line), findsOneWidget, reason: line);

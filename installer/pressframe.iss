@@ -22,6 +22,7 @@ OutputBaseFilename=PressFrame-Setup-1.0.0
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\windows\runner\resources\app_icon.ico
 UninstallDisplayIcon={app}\pressframe.exe
 UninstallDisplayName=PressFrame
 

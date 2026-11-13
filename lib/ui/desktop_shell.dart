@@ -292,6 +292,8 @@ class _DesktopShellState extends State<DesktopShell> {
         final current = _exporting ? _Step.export : _step;
         return Row(
           children: [
+            Image.asset('assets/logo.png', key: const ValueKey('app-logo'), width: 28, height: 28),
+            const SizedBox(width: 8),
             const Text('PressFrame', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
             const SizedBox(width: 16),
             PopupMenuButton<VoidCallback>(
