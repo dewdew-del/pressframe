@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:pressframe/models/template.dart';
 import 'package:pressframe/storage/app_store.dart';
+import 'package:pressframe/ui/shared/color_picker.dart';
 import 'package:pressframe/ui/shared/template_editor.dart';
 
 void main() {

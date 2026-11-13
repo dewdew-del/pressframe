@@ -10,6 +10,7 @@ import '../../models/template.dart';
 import '../../session.dart';
 import '../../storage/template_library.dart';
 import '../theme.dart';
+import 'color_picker.dart';
 import 'preview_view.dart';
 import 'slider_group.dart';
 
@@ -25,15 +26,6 @@ double snapAxis(double v, double half) {
   }
   return clamped;
 }
-
-/// '#RRGGBB' or 'RRGGBB' to an opaque ARGB int; null if it is not a color.
-int? parseHex(String text) {
-  final m = RegExp(r'^#?([0-9a-fA-F]{6})$').firstMatch(text.trim());
-  return m == null ? null : 0xFF000000 | int.parse(m.group(1)!, radix: 16);
-}
-
-String toHex(int argb) =>
-    '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
 
 /// Makes or edits a built template (gradient band + logos) with a live preview on the
 /// selected photo. Pops with the saved [BuiltTemplate], or null on cancel.
@@ -389,89 +381,4 @@ class _DraftPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DraftPainter old) => true;
-}
-
-/// A color picker made of hue, saturation and brightness sliders plus a hex field.
-class ColorField extends StatefulWidget {
-  final String label;
-  final int color; // ARGB
-  final ValueChanged<int> onChanged;
-  const ColorField({super.key, required this.label, required this.color, required this.onChanged});
-
-  @override
-  State<ColorField> createState() => _ColorFieldState();
-}
-
-class _ColorFieldState extends State<ColorField> {
-  late final _hex = TextEditingController(text: toHex(widget.color));
-  // Kept here because a gray or black color has no hue of its own to read back.
-  late HSVColor _hsv = HSVColor.fromColor(Color(widget.color));
-
-  @override
-  void didUpdateWidget(ColorField old) {
-    super.didUpdateWidget(old);
-    if (widget.color != _hsv.toColor().toARGB32()) _hsv = HSVColor.fromColor(Color(widget.color));
-    if (parseHex(_hex.text) != widget.color) _hex.text = toHex(widget.color);
-  }
-
-  @override
-  void dispose() {
-    _hex.dispose();
-    super.dispose();
-  }
-
-  void _set(HSVColor c) {
-    setState(() => _hsv = c);
-    widget.onChanged(c.toColor().toARGB32());
-  }
-
-  Widget _slider(String name, double value, double max, HSVColor Function(double) apply) => Row(
-    children: [
-      SizedBox(width: 84, child: Text(name, style: const TextStyle(fontSize: 12))),
-      Expanded(
-        child: Semantics(
-          label: '${widget.label} $name',
-          child: Slider(value: value.clamp(0, max), max: max, onChanged: (v) => _set(apply(v))),
-        ),
-      ),
-    ],
-  );
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: Color(widget.color),
-                border: Border.all(color: Colors.white38),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Text(widget.label)),
-            SizedBox(
-              width: 110,
-              child: TextField(
-                controller: _hex,
-                decoration: const InputDecoration(isDense: true, labelText: 'Hex'),
-                onChanged: (text) {
-                  final c = parseHex(text);
-                  if (c != null) widget.onChanged(c);
-                },
-              ),
-            ),
-          ],
-        ),
-        _slider('Hue', _hsv.hue, 360, _hsv.withHue),
-        _slider('Saturation', _hsv.saturation, 1, _hsv.withSaturation),
-        _slider('Brightness', _hsv.value, 1, _hsv.withValue),
-      ],
-    ),
-  );
 }
