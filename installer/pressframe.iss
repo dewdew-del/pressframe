@@ -32,9 +32,11 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 ; Flutter apps need the Visual C++ runtime. Shipping these three files next to the app means
 ; it also starts on a PC that never had Visual Studio or the VC++ redistributable installed.
-Source: "C:\Windows\System32\msvcp140.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Windows\System32\vcruntime140.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Windows\System32\vcruntime140_1.dll"; DestDir: "{app}"; Flags: ignoreversion
+; Sysnative, not System32: the Inno compiler is 32-bit, so Windows would hand it the 32-bit
+; copies from System32. Sysnative is the real 64-bit folder.
+Source: "C:\Windows\Sysnative\msvcp140.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Windows\Sysnative\vcruntime140.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Windows\Sysnative\vcruntime140_1.dll"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\PressFrame"; Filename: "{app}\pressframe.exe"
