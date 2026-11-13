@@ -1,6 +1,6 @@
 # PressFrame
 
-**Live demo:** coming soon (APK and Windows installer will be on GitHub Releases)
+**Live demo:** [Download the APK or Windows installer](https://github.com/dewdew-del/pressframe/releases/latest)
 
 PressFrame is one Flutter app for Android and Windows, made for school publication photographers. Fix color and light, add the publication's branding (a gradient band with logos, or an imported PNG frame), and export a whole event in one pass. It works offline, needs no account and costs nothing.
 
@@ -32,7 +32,7 @@ PressFrame puts the whole job in one place. You import the event, fix light and 
 
 ## Download
 
-Coming soon on GitHub Releases:
+Download from [GitHub Releases](https://github.com/dewdew-del/pressframe/releases/latest):
 
 - **Android:** `PressFrame.apk`. Exported photos are saved to the gallery album "PressFrame".
 - **Windows:** `PressFrame-Setup-1.0.0.exe`. It installs for the current user, so no administrator password is needed.
