@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
 
 /// '#RRGGBB' or 'RRGGBB' to an opaque ARGB int; null if it is not a color.
 int? parseHex(String text) {
@@ -84,7 +85,7 @@ class _PickerSheetState extends State<_PickerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    const small = TextStyle(fontSize: 12, color: Color(0xFFA8A8A8));
+    final small = TextStyle(fontSize: 12, color: hintColor);
     final hue = HSVColor.fromAHSV(1, _hsv.hue, 1, 1).toColor();
     return SafeArea(
       child: Padding(
@@ -102,7 +103,7 @@ class _PickerSheetState extends State<_PickerSheet> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text('Ready colors', style: small),
+            Text('Ready colors', style: small),
             Wrap(
               children: [
                 for (final c in readyColors)
@@ -118,7 +119,7 @@ class _PickerSheetState extends State<_PickerSheet> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text('Mix your own', style: small),
+            Text('Mix your own', style: small),
             const SizedBox(height: 6),
             // Left to right = more color, top to bottom = darker.
             _Pad(

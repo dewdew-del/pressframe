@@ -234,7 +234,9 @@ class _DesktopShellState extends State<DesktopShell> {
                 tooltip: 'Show the photo before editing (or hold \\)',
               ),
               const SizedBox(width: 8),
-              Material(
+              Theme(
+                data: pressFrameDarkTheme,
+                child: Material(
                 color: const Color(0xCC2A2A2A),
                 shape: const StadiumBorder(),
                 clipBehavior: Clip.antiAlias,
@@ -259,12 +261,13 @@ class _DesktopShellState extends State<DesktopShell> {
                   ],
                 ),
               ),
+              ),
             ],
           ),
         ),
       ),
       if (!_cropping)
-        const Positioned(
+        Positioned(
           left: 12,
           bottom: 8,
           child: IgnorePointer(
@@ -296,20 +299,20 @@ class _DesktopShellState extends State<DesktopShell> {
                 PopupMenuItem(value: () => actions.addPhotos(context), child: const Text('Add photos')),
                 PopupMenuItem(value: () => actions.addFolder(context), child: const Text('Add folder')),
               ],
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                 child: Text('Import ▾', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
               ),
             ),
             const Spacer(),
             _stepButton('1 Edit', current == _Step.edit, () => setState(() => _step = _Step.edit)),
-            const Text('›', style: TextStyle(color: hintColor)),
+            Text('›', style: TextStyle(color: hintColor)),
             _stepButton(
               '2 Review',
               current == _Step.review,
               any ? () => setState(() => _step = _Step.review) : null,
             ),
-            const Text('›', style: TextStyle(color: hintColor)),
+            Text('›', style: TextStyle(color: hintColor)),
             _stepButton('3 Export', current == _Step.export, any ? _export : null),
             const Spacer(),
             PopupMenuButton<VoidCallback>(
@@ -342,7 +345,7 @@ class _DesktopShellState extends State<DesktopShell> {
                 const PopupMenuDivider(),
                 PopupMenuItem(
                   value: () => showTextSizeDialog(context),
-                  child: const Text('Text size…'),
+                  child: const Text('Appearance…'),
                 ),
               ],
               icon: const Icon(Icons.more_vert),

@@ -168,22 +168,56 @@ class AppActions {
   }
 }
 
-/// Small / Normal / Large text for the whole app.
+class _LightSwitch extends StatefulWidget {
+  @override
+  State<_LightSwitch> createState() => _LightSwitchState();
+}
+
+class _LightSwitchState extends State<_LightSwitch> {
+  late bool _on = lightThemeSetting.value;
+
+  @override
+  void dispose() {
+    lightThemeSetting.value = _on;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+    contentPadding: EdgeInsets.zero,
+    title: const Text('Light theme'),
+    value: _on,
+    onChanged: (v) => setState(() => _on = v),
+  );
+}
+
+/// Text size and light / dark theme.
 Future<void> showTextSizeDialog(BuildContext context) => showDialog<void>(
   context: context,
   builder: (context) => AlertDialog(
-    title: const Text('Text size'),
-    content: ValueListenableBuilder<double>(
-      valueListenable: textScaleSetting,
-      builder: (context, v, _) => SegmentedButton<double>(
-        segments: const [
-          ButtonSegment(value: 0.85, label: Text('Small')),
-          ButtonSegment(value: 1.0, label: Text('Normal')),
-          ButtonSegment(value: 1.25, label: Text('Large')),
-        ],
-        selected: {v},
-        onSelectionChanged: (s) => textScaleSetting.value = s.first,
-      ),
+    title: const Text('Appearance'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Text size'),
+        const SizedBox(height: 8),
+        ValueListenableBuilder<double>(
+          valueListenable: textScaleSetting,
+          builder: (context, v, _) => SegmentedButton<double>(
+            segments: const [
+              ButtonSegment(value: 0.85, label: Text('Small')),
+              ButtonSegment(value: 1.0, label: Text('Normal')),
+              ButtonSegment(value: 1.25, label: Text('Large')),
+            ],
+            selected: {v},
+            onSelectionChanged: (s) => textScaleSetting.value = s.first,
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Switching restarts the screens (your photos and edits stay), so it applies on Close.
+        _LightSwitch(),
+      ],
     ),
     actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
   ),
@@ -219,7 +253,7 @@ class EmptyState extends StatelessWidget {
                 FilledButton(onPressed: onAdd, child: const Text('Add photos')),
                 if (canDrop) ...[
                   const SizedBox(height: 12),
-                  const Text('or drop photos or a folder here', style: TextStyle(fontSize: 13, color: hintColor)),
+                  Text('or drop photos or a folder here', style: TextStyle(fontSize: 13, color: hintColor)),
                 ],
               ],
             ),

@@ -228,7 +228,7 @@ class BeforeAfterButton extends StatelessWidget {
         onPressed: () => session.showBefore.value = !session.showBefore.value,
         style: FilledButton.styleFrom(
           backgroundColor: before ? accentColor : const Color(0xCC2A2A2A),
-          foregroundColor: before ? const Color(0xFF0B1A2B) : textColor,
+          foregroundColor: before ? const Color(0xFF0B1A2B) : const Color(0xFFE6E6E6),
         ),
         child: const Text('Before / After'),
       ),

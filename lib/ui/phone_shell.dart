@@ -309,7 +309,7 @@ class _PhoneShellState extends State<PhoneShell> {
               const PopupMenuDivider(),
               PopupMenuItem(
                 value: () => showTextSizeDialog(context),
-                child: const Text('Text size…'),
+                child: const Text('Appearance…'),
               ),
             ],
             icon: const Icon(Icons.more_vert),

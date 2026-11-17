@@ -127,6 +127,16 @@ class AppStore {
 
   Future<void> saveTextScale(double v) => _scaleFile.writeAsString('$v');
 
+  File get _lightFile => File('${support.path}/light_theme');
+  bool loadLightTheme() => _lightFile.existsSync();
+  Future<void> saveLightTheme(bool on) async {
+    if (on) {
+      await _lightFile.writeAsString('1');
+    } else if (_lightFile.existsSync()) {
+      await _lightFile.delete();
+    }
+  }
+
   // ---- First-run tips ----
 
   File get _tipsFlag => File('${support.path}/tips_seen');

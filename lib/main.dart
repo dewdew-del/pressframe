@@ -49,10 +49,14 @@ class _PressFrameAppState extends State<PressFrameApp> {
     super.initState();
     if (widget.store == null) return;
     textScaleSetting.value = widget.store!.loadTextScale();
+    lightThemeSetting.value = widget.store!.loadLightTheme();
     textScaleSetting.addListener(_saveScale);
+    lightThemeSetting.addListener(_saveTheme);
     // Autosave starts only after the "Continue?" question, so it cannot erase the old session.
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerRestore());
   }
+
+  void _saveTheme() => widget.store?.saveLightTheme(lightThemeSetting.value).ignore();
 
   void _saveScale() => widget.store?.saveTextScale(textScaleSetting.value).ignore();
 
@@ -115,12 +119,20 @@ class _PressFrameAppState extends State<PressFrameApp> {
   void dispose() {
     _save?.cancel();
     textScaleSetting.removeListener(_saveScale);
+    lightThemeSetting.removeListener(_saveTheme);
     widget.session.removeListener(_scheduleSave);
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: lightThemeSetting,
+    // A new key rebuilds everything, so every color is read again in the new theme.
+    builder: (context, light, _) => _app(light),
+  );
+
+  Widget _app(bool light) => MaterialApp(
+    key: ValueKey(light),
     navigatorKey: _nav,
     title: 'PressFrame',
     debugShowCheckedModeBanner: false,

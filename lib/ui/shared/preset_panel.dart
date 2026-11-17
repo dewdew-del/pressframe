@@ -100,7 +100,7 @@ class _PresetPanelState extends State<PresetPanel> {
                   constraints: const BoxConstraints(minHeight: 48),
                   child: Row(
                     children: [
-                      const Text('Preset options', style: TextStyle(fontSize: 13, color: hintColor)),
+                      Text('Preset options', style: TextStyle(fontSize: 13, color: hintColor)),
                       Icon(_options ? Icons.expand_less : Icons.expand_more, size: 18, color: hintColor),
                     ],
                   ),
