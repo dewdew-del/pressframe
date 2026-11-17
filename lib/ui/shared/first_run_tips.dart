@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 const tipSteps = [
-  ('1  Edit', 'Add your photos, then adjust light, color and crop. Pick a template for the frame or caption.'),
+  ('1  Edit', 'Add your photos, then adjust light, color and crop. Pick a template for the frame or caption. On a phone you can plug in your camera with a USB cable (camera set to PTP or MTP mode) and pick photos straight from it.'),
   ('2  Review', 'See every photo as it will be exported. Tap one to change its template, shape or credit.'),
   ('3  Export', 'Choose a name for the event and export. Your original photos are never changed.'),
 ];
