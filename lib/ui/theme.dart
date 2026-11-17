@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+/// Text size chosen in the app (1 = normal). main.dart saves and restores it.
+final textScaleSetting = ValueNotifier<double>(1.0);
 
 const surfaceColor = Color(0xFF1E1E1E);
 const panelColor = Color(0xFF2A2A2A);

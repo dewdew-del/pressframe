@@ -339,6 +339,11 @@ class _DesktopShellState extends State<DesktopShell> {
                   value: session.applyEditToAll,
                   child: const Text('Apply to all'),
                 ),
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: () => showTextSizeDialog(context),
+                  child: const Text('Text size…'),
+                ),
               ],
               icon: const Icon(Icons.more_vert),
             ),

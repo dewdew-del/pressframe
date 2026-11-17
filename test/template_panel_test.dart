@@ -33,8 +33,15 @@ void main() {
     expect(session.credit.enabled, true);
     expect(find.byKey(const ValueKey('credit-text')), findsOneWidget);
 
-    await tester.enterText(find.byKey(const ValueKey('credit-text')), 'Photo by Ana');
+    await tester.tap(find.byKey(const ValueKey('credit-text')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add a name…').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Photo by Ana');
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
     expect(session.creditText, 'Photo by Ana');
+    expect(session.creditNames, ['Photo by Ana']);
 
     await tester.tap(find.text('Black'));
     await tester.pump();

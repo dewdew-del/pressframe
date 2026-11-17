@@ -94,6 +94,14 @@ class Session extends ChangeNotifier {
   CreditStyle get credit => _credit;
   set credit(CreditStyle v) => _set(() => _credit = v);
 
+  /// Names offered in the credit dropdowns. They outlive the session; main.dart saves them.
+  List<String> _creditNames = [];
+  List<String> get creditNames => List.unmodifiable(_creditNames);
+  void setCreditNames(List<String> names) => _set(() => _creditNames = [...names]);
+  void addCreditName(String name) {
+    if (!_creditNames.contains(name)) setCreditNames([..._creditNames, name]);
+  }
+
   bool _portrait(BatchItem i) {
     final size = orientedSize(i.width, i.height, i.quarterTurns);
     return size.height > size.width; // square counts as landscape
@@ -170,6 +178,44 @@ class Session extends ChangeNotifier {
     final result = await importPaths(paths, existing: {for (final i in _items) i.path});
     addItems(result.items);
     return result.skipped;
+  }
+
+  /// What "Continue where you stopped?" brings back. Undo history is not kept.
+  Map<String, dynamic> toJson() => {
+    'items': [for (final i in _items) i.toJson()],
+    'selected': _selected,
+    'filter': _filter.name,
+    'landscapeTemplate': _landscapeTemplate,
+    'portraitTemplate': _portraitTemplate,
+    'landscapeShape': _landscapeShape.name,
+    'portraitShape': _portraitShape.name,
+    'creditText': _creditText,
+    'credit': _credit.toJson(),
+  };
+
+  /// Loads a saved session, dropping photos whose file is gone. Returns how many came back.
+  int restore(Map<String, dynamic> j) {
+    _items.clear();
+    _undo.clear();
+    _redo.clear();
+    for (final e in j['items'] as List? ?? const []) {
+      try {
+        final item = BatchItem.fromJson(e as Map<String, dynamic>);
+        if (File(item.path).existsSync()) _items.add(item);
+      } on Object {
+        // one bad entry does not lose the others
+      }
+    }
+    _selected = ((j['selected'] as int?) ?? 0).clamp(0, _items.isEmpty ? 0 : _items.length - 1);
+    _filter = enumByName(FlagFilter.values, j['filter'], FlagFilter.hideRejects);
+    _landscapeTemplate = j['landscapeTemplate'] as String?;
+    _portraitTemplate = j['portraitTemplate'] as String?;
+    _landscapeShape = enumByName(OutputShape.values, j['landscapeShape'], OutputShape.original);
+    _portraitShape = enumByName(OutputShape.values, j['portraitShape'], OutputShape.original);
+    _creditText = j['creditText'] as String? ?? '';
+    _credit = CreditStyle.fromJson(j['credit'] as Map<String, dynamic>? ?? const {});
+    notifyListeners();
+    return _items.length;
   }
 
   void select(int index) {

@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../engine/renderer.dart';
 import '../../export/exporter.dart';
+import '../../export/plain_errors.dart';
 import '../../models/template.dart';
 import '../../session.dart';
 import '../../storage/app_store.dart';
@@ -103,7 +104,10 @@ class AppActions {
           width: 420,
           child: ListView(
             shrinkWrap: true,
-            children: [for (final p in skipped) Text(p.split(RegExp(r'[\\/]')).last)],
+            children: [
+              for (final p in skipped)
+                Text(plainPhotoProblem(p.split(RegExp(r'[\\/]')).last, 'damaged')),
+            ],
           ),
         ),
         actions: [
@@ -163,6 +167,27 @@ class AppActions {
     }
   }
 }
+
+/// Small / Normal / Large text for the whole app.
+Future<void> showTextSizeDialog(BuildContext context) => showDialog<void>(
+  context: context,
+  builder: (context) => AlertDialog(
+    title: const Text('Text size'),
+    content: ValueListenableBuilder<double>(
+      valueListenable: textScaleSetting,
+      builder: (context, v, _) => SegmentedButton<double>(
+        segments: const [
+          ButtonSegment(value: 0.85, label: Text('Small')),
+          ButtonSegment(value: 1.0, label: Text('Normal')),
+          ButtonSegment(value: 1.25, label: Text('Large')),
+        ],
+        selected: {v},
+        onSelectionChanged: (s) => textScaleSetting.value = s.first,
+      ),
+    ),
+    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+  ),
+);
 
 /// The first screen, before any photo is added: one big way in.
 class EmptyState extends StatelessWidget {

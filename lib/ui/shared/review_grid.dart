@@ -7,9 +7,11 @@ import '../../engine/geometry.dart';
 import '../../engine/renderer.dart';
 import '../../export/exporter.dart';
 import '../../models/batch_item.dart';
+import '../../models/edit_params.dart';
 import '../../models/template.dart';
 import '../../session.dart';
 import '../theme.dart';
+import 'credit_name_field.dart';
 import 'crop_view.dart';
 import 'filmstrip.dart' show ThumbnailLoader;
 import 'preview_view.dart';
@@ -17,7 +19,7 @@ import 'template_panel.dart' show shapeNames;
 
 /// Every photo that will be exported, drawn with its edit, crop, template and credit.
 /// Tap one to change its template, shape, credit or crop, or to open it in the editor.
-class ReviewGrid extends StatelessWidget {
+class ReviewGrid extends StatefulWidget {
   final Session session;
   final Renderer? renderer; // null in widget tests: gray tiles
   final List<Template> templates;
@@ -37,12 +39,25 @@ class ReviewGrid extends StatelessWidget {
     this.longEdge = 2048,
   });
 
+  @override
+  State<ReviewGrid> createState() => _ReviewGridState();
+}
+
+class _ReviewGridState extends State<ReviewGrid> {
+  bool _compare = false; // tiles show the photos without their edits
+
+  Session get session => widget.session;
+  Renderer? get renderer => widget.renderer;
+  List<Template> get templates => widget.templates;
+  Map<String, ui.Image> get assets => widget.assets;
+  ThumbnailLoader? get thumbnails => widget.thumbnails;
+
   Widget _panel() => ReviewPanel(
     session: session,
     renderer: renderer,
     templates: templates,
-    onOpenInEdit: onOpenInEdit,
-    longEdge: longEdge,
+    onOpenInEdit: widget.onOpenInEdit,
+    longEdge: widget.longEdge,
   );
 
   @override
@@ -59,7 +74,7 @@ class ReviewGrid extends StatelessWidget {
           if (indexes.isEmpty) {
             return const Center(child: Text('No photos to review. Import photos first.'));
           }
-          final grid = GridView.builder(
+          final tiles = GridView.builder(
             padding: const EdgeInsets.all(12),
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 220,
@@ -70,7 +85,8 @@ class ReviewGrid extends StatelessWidget {
             itemBuilder: (context, i) {
               final index = indexes[i];
               final item = session.items[index];
-              final spec = session.specFor(item, templates);
+              var spec = session.specFor(item, templates);
+              if (_compare) spec = (item: item.copyWith(edit: EditParams.neutral), shape: spec.shape, template: spec.template, creditText: spec.creditText, credit: spec.credit);
               final template = spec.template;
               return ReviewTile(
                 key: ValueKey('review-${item.path}'),
@@ -92,6 +108,23 @@ class ReviewGrid extends StatelessWidget {
                 },
               );
             },
+          );
+          final grid = Column(
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                  child: FilterChip(
+                    key: const ValueKey('compare-original'),
+                    label: const Text('Compare with original'),
+                    selected: _compare,
+                    onSelected: (v) => setState(() => _compare = v),
+                  ),
+                ),
+              ),
+              Expanded(child: tiles),
+            ],
           );
           if (!wide) return grid;
           return Row(
@@ -247,15 +280,6 @@ class ReviewPanel extends StatefulWidget {
 }
 
 class _ReviewPanelState extends State<ReviewPanel> {
-  final _credit = TextEditingController();
-  String? _path;
-
-  @override
-  void dispose() {
-    _credit.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.session,
@@ -264,10 +288,6 @@ class _ReviewPanelState extends State<ReviewPanel> {
       final item = session.selected;
       if (item == null || item.flag == Flag.reject) {
         return const Center(child: Text('Tap a photo to adjust it.'));
-      }
-      if (_path != item.path) {
-        _path = item.path;
-        _credit.text = item.creditOverride ?? '';
       }
       final names = widget.templates.map((t) => t.name).toList();
       final template = item.templateOverride == null || item.templateOverride == '' || names.contains(item.templateOverride)
@@ -312,25 +332,14 @@ class _ReviewPanelState extends State<ReviewPanel> {
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
+            CreditNameField(
               key: const ValueKey('credit-override'),
-              controller: _credit,
-              maxLength: 60,
-              decoration: InputDecoration(
-                labelText: 'Credit for this photo',
-                helperText: session.credit.enabled
-                    ? 'Empty uses the batch credit'
-                    : 'Photo credit is off (turn it on in Template)',
-              ),
-              // Typing is one undo step, closed when the field loses focus or Enter is hit.
-              onChanged: (v) => session.updateLive(
-                (i) => i.copyWith(creditOverride: () => v.trim().isEmpty ? null : v),
-                commit: false,
-              ),
-              onEditingComplete: () {
-                session.updateLive((i) => i, commit: true);
-                FocusScope.of(context).unfocus();
-              },
+              session: session,
+              value: item.creditOverride,
+              label: 'Credit for this photo',
+              emptyLabel: 'Same as batch',
+              helper: session.credit.enabled ? null : 'Photo credit is off (turn it on in Template)',
+              onChanged: (v) => session.updateSelected((i) => i.copyWith(creditOverride: () => v.isEmpty ? null : v)),
             ),
             const SizedBox(height: 4),
             const Text('Crop position', style: TextStyle(fontWeight: FontWeight.w600)),

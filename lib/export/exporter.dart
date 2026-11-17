@@ -13,6 +13,7 @@ import '../models/batch_item.dart';
 import '../models/edit_params.dart';
 import '../models/template.dart';
 import 'filename.dart';
+import 'plain_errors.dart';
 
 class ExportSettings {
   final String eventName;
@@ -120,7 +121,7 @@ class Exporter {
     try {
       Directory(s.outDir).createSync(recursive: true);
     } on FileSystemException catch (e) {
-      failures.add((path: s.outDir, reason: 'The output folder cannot be used. ${_os(e)}'));
+      failures.add((path: s.outDir, reason: plainOutputProblem(e)));
       yield progress(0, finished: true);
       return;
     }
@@ -132,14 +133,14 @@ class Exporter {
       try {
         await _exportOne(spec, s, name, done + 1, total);
       } on DecodeFailure catch (e) {
-        failures.add((path: spec.item.path, reason: e.reason));
+        failures.add((path: spec.item.path, reason: plainPhotoProblem(_base(spec.item.path), e.reason)));
       } on _OutputFailure catch (e) {
         // Every later photo would fail the same way: stop and keep what is finished.
         failures.add((path: s.outDir, reason: e.reason));
         yield progress(done, finished: true);
         return;
       } catch (e) {
-        failures.add((path: spec.item.path, reason: 'Could not be exported ($e)'));
+        failures.add((path: spec.item.path, reason: plainPhotoProblem(_base(spec.item.path), '$e')));
       }
       done++;
       yield progress(done);
@@ -196,7 +197,7 @@ class Exporter {
       await part.writeAsBytes(jpeg, flush: true);
       await part.rename(path);
     } on FileSystemException catch (e) {
-      throw _OutputFailure('Cannot write to the output folder (is the disk full?). ${_os(e)}');
+      throw _OutputFailure(plainOutputProblem(e));
     } finally {
       if (part.existsSync()) part.deleteSync();
     }
@@ -209,5 +210,5 @@ class Exporter {
     }
   }
 
-  static String _os(FileSystemException e) => e.osError?.message.trim() ?? e.message;
+  static String _base(String path) => path.split(RegExp(r'[\/]')).last;
 }

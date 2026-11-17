@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../engine/renderer.dart';
 import '../../models/template.dart';
 import '../../session.dart';
+import 'credit_name_field.dart';
 import '../../storage/app_store.dart';
 import '../../storage/template_library.dart';
 import 'slider_group.dart';
@@ -63,16 +64,8 @@ class TemplatePanel extends StatefulWidget {
 }
 
 class _TemplatePanelState extends State<TemplatePanel> {
-  late final _credit = TextEditingController(text: widget.session.creditText);
-
   Session get session => widget.session;
   List<Template> get _all => widget.library?.templates ?? const [];
-
-  @override
-  void dispose() {
-    _credit.dispose();
-    super.dispose();
-  }
 
   void _say(String message) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -270,14 +263,12 @@ class _TemplatePanelState extends State<TemplatePanel> {
           if (credit.enabled) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: TextField(
+              child: CreditNameField(
                 key: const ValueKey('credit-text'),
-                controller: _credit,
-                maxLength: 60,
-                decoration: const InputDecoration(
-                  labelText: 'Credit text',
-                  hintText: 'Photo by Juan Dela Cruz',
-                ),
+                session: session,
+                value: session.creditText,
+                label: 'Credit text',
+                emptyLabel: 'Choose a name',
                 onChanged: (v) => session.creditText = v,
               ),
             ),

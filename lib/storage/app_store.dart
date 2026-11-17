@@ -114,6 +114,43 @@ class AppStore {
     await tmp.rename('${support.path}/$name');
   }
 
+  // ---- Text size ----
+
+  File get _scaleFile => File('${support.path}/text_scale');
+  double loadTextScale() {
+    try {
+      return (double.tryParse(_scaleFile.readAsStringSync()) ?? 1).clamp(0.8, 1.3);
+    } on FileSystemException {
+      return 1;
+    }
+  }
+
+  Future<void> saveTextScale(double v) => _scaleFile.writeAsString('$v');
+
+  // ---- First-run tips ----
+
+  File get _tipsFlag => File('${support.path}/tips_seen');
+  bool get tipsSeen => _tipsFlag.existsSync();
+  Future<void> markTipsSeen() => _tipsFlag.writeAsString('1');
+
+  // ---- Last session ----
+
+  Future<Map<String, dynamic>?> loadSession() async {
+    final l = await _readList('session.json');
+    return l.isNotEmpty && l.first is Map<String, dynamic> ? l.first as Map<String, dynamic> : null;
+  }
+
+  /// null clears it (nothing left to continue).
+  Future<void> saveSession(Map<String, dynamic>? data) =>
+      _writeList('session.json', [if (data != null) data]);
+
+  Future<List<String>> loadCreditNames() async => [
+    for (final n in await _readList('credit_names.json'))
+      if (n is String) n,
+  ];
+
+  Future<void> saveCreditNames(List<String> names) => _writeList('credit_names.json', names);
+
   // ---- Presets ----
 
   Future<List<Preset>> loadPresets() async {

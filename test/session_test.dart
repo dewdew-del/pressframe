@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -220,5 +222,19 @@ void main() {
       final s = mixed()..landscapeShape = OutputShape.original;
       expect(s.specFor(s.items[0], templates).template, same(band));
     });
+  });
+
+  test('a saved session comes back, without photos whose file is gone', () {
+    final file = File('${Directory.systemTemp.path}/pf_session_test.jpg')..writeAsBytesSync([1]);
+    addTearDown(file.deleteSync);
+    final a = Session()
+      ..addItems([item(file.path), item('missing.jpg')])
+      ..creditText = 'Ana'
+      ..landscapeTemplate = 'Gold'
+      ..setEdit(exp(0.5), commit: true);
+    final b = Session();
+    expect(b.restore(jsonDecode(jsonEncode(a.toJson())) as Map<String, dynamic>), 1);
+    expect(b.items.single.edit, exp(0.5));
+    expect((b.creditText, b.landscapeTemplate), ('Ana', 'Gold'));
   });
 }

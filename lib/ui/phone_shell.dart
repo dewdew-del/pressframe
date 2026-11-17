@@ -306,6 +306,11 @@ class _PhoneShellState extends State<PhoneShell> {
                 value: _importKit,
                 child: const Text('Import kit'),
               ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: () => showTextSizeDialog(context),
+                child: const Text('Text size…'),
+              ),
             ],
             icon: const Icon(Icons.more_vert),
           ),

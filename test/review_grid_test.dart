@@ -48,6 +48,16 @@ void main() {
     expect(find.byKey(const ValueKey('review-b')), findsNothing);
   });
 
+  testWidgets('Compare with original is a toggle that shows the edits again when off', (tester) async {
+    await pump(tester, five());
+    final chip = find.byKey(const ValueKey('compare-original'));
+    expect(tester.widget<FilterChip>(chip).selected, false);
+    await tester.tap(chip);
+    await tester.pump();
+    expect(tester.widget<FilterChip>(chip).selected, true);
+    expect(find.byType(ReviewTile), findsNWidgets(4));
+  });
+
   testWidgets('a credit override applies to the tapped photo only', (tester) async {
     final session = five();
     await pump(tester, session);
@@ -55,13 +65,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(session.selected!.path, 'd');
 
-    await tester.enterText(find.byKey(const ValueKey('credit-override')), 'Photo by Ana');
+    session.addCreditName('Photo by Ana');
     await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('credit-override')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Photo by Ana').last);
+    await tester.pumpAndSettle();
     expect(session.items.map((i) => i.creditOverride), [null, null, null, 'Photo by Ana', null]);
 
-    await tester.enterText(find.byKey(const ValueKey('credit-override')), '');
-    await tester.pump();
-    expect(session.items[3].creditOverride, isNull, reason: 'empty text goes back to the batch credit');
+    await tester.tap(find.byKey(const ValueKey('credit-override')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Same as batch').last);
+    await tester.pumpAndSettle();
+    expect(session.items[3].creditOverride, isNull, reason: 'empty goes back to the batch credit');
   });
 
   testWidgets('template and shape can be overridden per photo', (tester) async {

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pressframe/models/batch_item.dart';
+import 'package:pressframe/models/template.dart';
 import 'package:pressframe/export/exporter.dart';
 import 'package:pressframe/session.dart';
 import 'package:pressframe/ui/shared/export_sheet.dart';
@@ -53,8 +54,8 @@ void main() {
 
   testWidgets('warns when a RAW with a small preview will be exported', (tester) async {
     await pump(tester, Session()..addItems([jpg, smallRaw]));
-    expect(find.textContaining('small preview'), findsOneWidget);
-    expect(find.text('2 photos will be exported'), findsOneWidget);
+    expect(find.text('1 RAW photo will export small'), findsOneWidget);
+    expect(find.text('Export 2 photos'), findsOneWidget);
   });
 
   testWidgets('no warning without small RAW files, and rejected ones do not count', (tester) async {
@@ -62,8 +63,8 @@ void main() {
     session.select(1);
     session.setFlag(Flag.reject);
     await pump(tester, session);
-    expect(find.textContaining('small preview'), findsNothing);
-    expect(find.text('1 photo will be exported'), findsOneWidget);
+    expect(find.textContaining('will export small'), findsNothing);
+    expect(find.text('Export 1 photo'), findsOneWidget);
   });
 
   test('the new folder is named after the event, with unsafe characters removed', () {
@@ -81,7 +82,7 @@ void main() {
     expect(find.text('No folder chosen'), findsOneWidget);
     expect(find.text('Change…'), findsOneWidget);
     expect(tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value, true);
-    expect(find.text('Make a new folder named after the event'), findsOneWidget);
+    expect(find.text('New folder for this event'), findsOneWidget);
   });
 
   testWidgets('phone: the gallery is the only place, so no folder controls', (tester) async {
@@ -104,5 +105,22 @@ void main() {
     expect(find.text('Long edge (px)'), findsNothing);
     expect(find.text('Full size'), findsNothing);
     expect(find.byType(Switch), findsNothing);
+  });
+
+  test('warns about photos without a template and about a credit with no text', () {
+    const credit = CreditStyle(enabled: true);
+    RenderSpec spec(String n, {Template? t, String text = ''}) => (
+      item: BatchItem(path: 'x/$n.jpg', isRaw: false, width: 10, height: 10),
+      shape: OutputShape.original,
+      template: t,
+      creditText: text,
+      credit: credit,
+    );
+    const band = BuiltTemplate(name: 'Band');
+    expect(exportWarnings([spec('a', t: band, text: 'Ana')]), isEmpty);
+    final w = exportWarnings([spec('a.x'), spec('b', t: band, text: ' ')]);
+    expect(w, hasLength(2));
+    expect(w[0], contains('1 photo has no template: a.x.jpg'));
+    expect(w[1], contains('no text for 2 photos'));
   });
 }
