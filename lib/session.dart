@@ -67,6 +67,9 @@ class Session extends ChangeNotifier {
   /// True while the user holds the "before" key or presses the photo.
   final ValueNotifier<bool> showBefore = ValueNotifier(false);
 
+  /// Thirds grid drawn over the photo (laptop tool).
+  final ValueNotifier<bool> showGrid = ValueNotifier(false);
+
   List<BatchItem> get items => List.unmodifiable(_items);
   int get selectedIndex => _selected;
   BatchItem? get selected => _items.isEmpty ? null : _items[_selected];
@@ -338,6 +341,7 @@ class Session extends ChangeNotifier {
   void dispose() {
     _live.dispose();
     showBefore.dispose();
+    showGrid.dispose();
     super.dispose();
   }
 }

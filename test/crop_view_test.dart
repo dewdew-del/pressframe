@@ -19,11 +19,8 @@ Future<Session> pumpShell(WidgetTester tester) async {
   await tester.pumpWidget(
     MaterialApp(theme: pressFrameTheme, home: DesktopShell(session: session)),
   );
-  // The panel scrolls on short screens; bring the Crop section into view and open it.
-  await tester.ensureVisible(find.text('Crop'));
-  await tester.tap(find.text('Crop'));
-  await tester.pumpAndSettle();
-  await tester.ensureVisible(find.text('Reset crop'));
+  // The crop tool lives in the pill at the top right of the photo.
+  await tester.tap(find.byTooltip('Crop and rotate'));
   await tester.pumpAndSettle();
   return session;
 }
@@ -43,8 +40,6 @@ void main() {
 
   testWidgets('dragging the crop rect moves it, as one undo step', (tester) async {
     final session = await pumpShell(tester);
-    await tester.tap(find.text('Adjust crop'));
-    await tester.pumpAndSettle();
     expect(find.byType(CropView), findsOneWidget);
 
     await tester.drag(find.byType(CropView), const Offset(40, 0));
@@ -92,5 +87,17 @@ void main() {
     expect(f.left, closeTo(0.1, 1e-9));
     expect(f.top, closeTo(0.3, 1e-9));
     expect(f.bottomRight, start.bottomRight);
+  });
+
+  testWidgets('the grid tool shows and hides the grid', (tester) async {
+    final session = await pumpShell(tester);
+    await tester.tap(find.byTooltip('Crop and rotate')); // close the crop tool again
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Show the grid'));
+    await tester.pump();
+    expect(session.showGrid.value, true);
+    await tester.tap(find.byTooltip('Hide the grid'));
+    await tester.pump();
+    expect(session.showGrid.value, false);
   });
 }

@@ -248,6 +248,7 @@ class _PreviewPainter extends CustomPainter {
           session,
           session.liveEdit,
           session.showBefore,
+          session.showGrid,
           library,
         ]),
       );
@@ -277,6 +278,22 @@ class _PreviewPainter extends CustomPainter {
         edit: session.showBefore.value ? EditParams.neutral : null,
       ),
     );
+    if (session.showGrid.value) {
+      final line = Paint()
+        ..color = const Color(0xB3FFFFFF)
+        ..strokeWidth = 1
+        ..isAntiAlias = true;
+      final shadow = Paint()
+        ..color = const Color(0x66000000)
+        ..strokeWidth = 2;
+      for (var i = 1; i < 3; i++) {
+        final x = fitted.width * i / 3, y = fitted.height * i / 3;
+        for (final p in [shadow, line]) {
+          canvas.drawLine(Offset(x, 0), Offset(x, fitted.height), p);
+          canvas.drawLine(Offset(0, y), Offset(fitted.width, y), p);
+        }
+      }
+    }
   }
 
   @override

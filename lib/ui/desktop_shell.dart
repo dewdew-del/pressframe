@@ -244,6 +244,23 @@ class _DesktopShellState extends State<DesktopShell> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
+                      tooltip: 'Crop and rotate',
+                      isSelected: _cropping,
+                      onPressed: session.selected == null ? null : () => setState(() => _cropping = !_cropping),
+                      icon: const Icon(Icons.crop),
+                      selectedIcon: Icon(Icons.crop, color: accentColor),
+                    ),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: session.showGrid,
+                      builder: (context, on, _) => IconButton(
+                        tooltip: on ? 'Hide the grid' : 'Show the grid',
+                        isSelected: on,
+                        onPressed: session.selected == null || _cropping ? null : () => session.showGrid.value = !on,
+                        icon: const Icon(Icons.grid_3x3),
+                        selectedIcon: Icon(Icons.grid_3x3, color: accentColor),
+                      ),
+                    ),
+                    IconButton(
                       tooltip: 'Undo (Ctrl+Z)',
                       onPressed: session.canUndo ? session.undo : null,
                       icon: const Icon(Icons.undo),
@@ -266,6 +283,35 @@ class _DesktopShellState extends State<DesktopShell> {
           ),
         ),
       ),
+      if (_cropping)
+        Positioned(
+          left: 12,
+          right: 12,
+          bottom: 8,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Material(
+              color: panelColor,
+              borderRadius: BorderRadius.circular(12),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CropTools(session: session),
+                      TextButton(
+                        onPressed: () => setState(() => _cropping = false),
+                        child: const Text('Done'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       if (!_cropping)
         Positioned(
           left: 12,
@@ -402,13 +448,6 @@ class _DesktopShellState extends State<DesktopShell> {
           _section('Detail', [
             SliderGroup(session: session, name: 'Detail', sliders: detailSliders, more: detailMore),
           ]),
-          _section('Crop', [
-            CropTools(
-              session: session,
-              cropping: _cropping,
-              onCropping: (v) => setState(() => _cropping = v),
-            ),
-          ], open: false),
           _section('Template', [
             TemplatePanel(
               session: session,
