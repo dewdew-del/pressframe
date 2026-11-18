@@ -3,12 +3,12 @@
 ; Build steps:
 ;   1. flutter build windows --release
 ;   2. Open this file in Inno Setup and press Compile (or run: ISCC installer\pressframe.iss)
-; The installer lands in build\installer\PressFrame-Setup-1.0.0.exe
+; The installer lands in build\installer\PressFrame-Setup-1.0.1.exe
 
 [Setup]
 AppId={{6B0F3C1E-7A54-4E0B-9D2A-5F1C2E7A9B01}
 AppName=PressFrame
-AppVersion=1.0.0
+AppVersion=1.0.1
 AppPublisher=dewdew-del
 DefaultDirName={autopf}\PressFrame
 DefaultGroupName=PressFrame
@@ -18,7 +18,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\build\installer
-OutputBaseFilename=PressFrame-Setup-1.0.0
+OutputBaseFilename=PressFrame-Setup-1.0.1
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
