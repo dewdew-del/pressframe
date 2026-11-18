@@ -38,12 +38,13 @@ Success means:
 - Keys on laptop: `P` pick, `X` reject, `U` clear. Phone: swipe up on the photo to pick, down to reject, and flag buttons in the top bar.
 
 ### Editing
-- Light: exposure, contrast, highlights, shadows.
-- Color: temperature, tint, saturation, vibrance.
-- Detail: sharpen.
+- Light: exposure, contrast, shadows, highlights, whites, blacks.
+- Color: temperature, saturation, tint, vibrance.
+- Detail: sharpen, texture, clarity.
+- Every slider is always visible; there is no "More controls" row (removed 2026-11-13).
+- On screen, exposure is labelled "Brightness" and temperature "Warmth". Values show as whole numbers from -100 to 100; Brightness keeps 2 decimals.
 - Crop, rotate 90, straighten.
-- Before/after, reset, undo/redo per photo.
-- **Auto fix:** one button sets exposure, contrast, temperature and tint from the photo's histogram. It only moves the sliders, so the result is a normal edit the user can fine-tune or undo.
+- Before/after, reset, undo/redo per photo. Undo shows no toast (removed 2026-11-13); Redo is the button or Ctrl+Y.
 - Copy edit / paste edit, and Apply to all (non-rejected photos).
 
 ### Presets
@@ -74,57 +75,71 @@ Either kind crops the photo to the output shape. Center crop by default, adjusta
 - Tap a photo to tweak its edit, crop position, or template.
 
 ### Export
-- JPEG quality slider, resize (long edge in px, default 2048), filename pattern (`EventName_001.jpg`), output folder.
+- JPEG quality slider, filename pattern (`EventName_001.jpg`), output folder. Photos always export at their own size after the crop; the long-edge field and Full size switch were removed (2026-11-13).
+- Windows: the output folder defaults to Downloads, "Change…" picks another, and "Make a new folder named after the event" (on by default) exports into a subfolder with the sanitized event name.
 - Progress bar, cancel, and a list of failures. One failure does not stop the batch.
 - Originals are never modified. Edit and template are applied in one render, so the photo is compressed once.
 
 ### Not in v1
-True RAW decoding, captions or any text other than the photo credit, custom fonts, curves, HSL, masks, healing, PNG/TIFF export, accounts, cloud, iOS.
+Auto fix (removed in the UI review of 2026-11-12), true RAW decoding, captions or any text other than the photo credit, custom fonts, curves, HSL, masks, healing, PNG/TIFF export, accounts, cloud, iOS.
 
 ## Layout
 
-Lightroom's layout patterns with PressFrame's own look. Dark neutral gray surfaces so photo colors read true; one accent color for the active control; no decoration around the photo.
+Lightroom's layout patterns with PressFrame's own look. Dark neutral gray surfaces so photo colors read true; one accent color for the active control; no decoration around the photo. Revised on 2026-11-12 from the UI review; the agreed list is `docs/ui-changes.md` and the drawn reference is https://claude.ai/artifact/SRvtnEnsBY615NuqLhJiG7 (private).
 
 ### Laptop (width 900 px and up)
 
 ```
 ┌───────────────────────────────────────────────────────┐
-│ PressFrame    Import · Edit · Review · Export  [Kit ▾]│
+│ PressFrame  Import   1 Edit › 2 Review › 3 Export   ⋮ │
 ├─────────────────────────────────────┬─────────────────┤
-│                                     │ Presets         │
-│           photo preview             │ Light    ▾      │
-│                                     │ Color    ▾      │
-│                                     │ Detail   ▾      │
+│              [Before/After] [↶ ↷ ⟲] │ Presets      ⋮  │
+│           photo preview             │ Light           │
+│                                     │ Color           │
+│                                     │ Detail          │
 │                                     │ Crop            │
 │                                     │ Template        │
 ├─────────────────────────────────────┴─────────────────┤
-│ ▢ ▢ ▣ ▢ ▢ ▢  filmstrip     [Apply to all] [Export all]│
+│ ▢ ▢ ▣ ▢ ▢ ▢  filmstrip          3 / 24 [Next: Review →]│
 └───────────────────────────────────────────────────────┘
 ```
 
-- Right panel, 320 px, collapsible sections, scrolls on short screens.
+- Step bar shows progress with the current step highlighted in bold and accent color, never underlined. One main button bottom right: "Next: Review →" on Edit, "Export all" on Review.
+- "⋮ More" in the top bar: Kit (Export kit, Import kit), Filter, Apply to all.
+- Undo, Redo, Reset sit in a small pill at the top right of the photo, next to a Before/After button.
+- "⋮" next to Save current in Presets: Import preset, and export or delete a saved preset. That row is hidden until "Preset options" under the chips is opened (laptop and phone).
+- Right panel, 320 px, collapsible sections (Presets, Crop and Template start minimized), scrolls on short screens.
 - Keys: left/right = previous/next photo, `\` = before/after, Ctrl+Z / Ctrl+Y, Ctrl+C / Ctrl+V = copy/paste edit, `P` `X` `U` = flags.
-- Double-click a slider resets it. Mouse wheel zooms the photo, drag pans.
-- Every control is reachable by Tab and has a visible focus ring.
+- Double-click a slider resets it. Photo hint: "Scroll to zoom, drag to move."
+- Every control is reachable by Tab and has a visible focus ring. Every icon has a tooltip.
 
 ### Phone (under 900 px)
 
 ```
 ┌──────────────────────┐
-│ ←      3 / 48    ⚑ ⋯ │
+│ ←   3 / 48  ⚑ ⋮ [Next →]│
 │                      │
 │        photo         │
 │                      │
 │ ▢ ▢ ▣ ▢ ▢  filmstrip │
-│ Exposure ──●──── +0.4│
-│ Presets Light Color Detail Crop Template │
+│ (Indoor gym)(Outdoor sun)… │
+│ Brightness      0.40 │
+│ ─────▲────────────── │
+│ Light  Color  Crop  Template │
 └──────────────────────┘
 ```
 
-- Tool tabs at the bottom for thumb reach. One slider group shown at a time.
-- Hold the photo for before. Pinch to zoom. Double-tap a slider to reset.
-- Touch targets at least 48 px. Sliders have text labels and values for screen readers.
+- Four tabs: Light, Color, Crop, Template. Preset chips sit at the top of the Light tab. The Detail sliders are a section at the bottom of the Light tab.
+- "Next →" pill in the top bar moves to Review, then Export. The ⋮ menu has Import, Kit, Filter, Apply to all.
+- A Before/After button sits at the top right of the photo; holding the photo also shows before. Pinch to zoom. Double-tap a slider to reset.
+- Touch targets at least 48 px; tabs at least 44 px tall; tab text 14 px. Sliders have text labels and values for screen readers.
 - Portrait orientation only in v1.
+
+### Both
+
+- Slider look: label on the left, small value box on the right, thin track with a triangle marker below it. Warmth track runs blue to yellow, Tint green to magenta.
+- Hint text `#A8A8A8` on `#2A2A2A`. Smallest text 12 px.
+- First run with no photos: a big "Add photos" drop area, with a one-line drop hint on the laptop and no other text.
 
 One set of shared widgets (preview, slider group, filmstrip, template editor) inside two shells chosen by a `LayoutBuilder` at 900 px.
 
@@ -136,7 +151,6 @@ lib/
     adjust.frag        shader: light, color, sharpen
     renderer.dart      render(photo, edit, crop, template, size) -> ui.Image
     decode.dart        file -> ui.Image, EXIF rotation, RAW embedded JPEG
-    auto_fix.dart      histogram -> EditParams
   models/              EditParams, Preset, Template, Kit, BatchItem
   export/exporter.dart queue
   storage/             presets, kits, app folder
@@ -151,7 +165,6 @@ lib/
 | `adjust.frag` | Per-pixel adjustment math | nothing |
 | `renderer` | Runs the shader, then draws crop, gradient and logos with `Canvas`. The source is decoded at no more than 8192 px long edge on Windows and 4096 px on Android, and the output never exceeds it, so no tiling is needed | shader, models |
 | `decode` | Opens a file at a requested size. For RAW, finds the largest embedded JPEG and decodes that | `image` package for EXIF |
-| `auto_fix` | Reads a small copy of the photo, returns slider values | models |
 | `models` | Immutable data with `toJson` / `fromJson` | nothing |
 | `exporter` | For each photo, one at a time: decode full size, render, encode JPEG in a background isolate, write file. Reports progress, supports cancel, collects failures | renderer, decode |
 | `storage` | Reads and writes presets, templates, kits | models, `archive` |
@@ -167,6 +180,8 @@ The preview widget and the exporter both call `renderer.render`. That shared cal
 - Filmstrip and grid build only the visible items.
 - Export keeps one full-size photo in memory at a time and frees it before the next.
 - Slider changes repaint only the preview, not the panel or filmstrip.
+- While a slider is dragged the preview renders at half its long edge; it renders at full preview quality on release.
+- Export never blocks the screen and can always be cancelled.
 
 ## Errors
 
@@ -185,13 +200,13 @@ The preview widget and the exporter both call `renderer.render`. That shared cal
 
 - **Preview equals export** (build step 1): render the same photo and edit at preview size and at full size, downscale the full-size result, assert the mean pixel difference is under 2 out of 255. Run on the laptop and on a physical Android phone.
 - **RAW check** (build step 1): extract the embedded JPEG from real CR3, CR2 and ARW samples and record its pixel size per camera model.
-- Unit tests: `EditParams` JSON round trip, crop-to-shape math, filename pattern, auto fix on a dark and a bright sample, kit zip round trip, malformed kit rejected.
+- Unit tests: `EditParams` JSON round trip, crop-to-shape math, filename pattern, kit zip round trip, malformed kit rejected.
 - Manual: a 200-photo batch export on the phone, watching memory.
 
 ## Build order
 
 1. Engine test: one photo, exposure slider, live preview, full-size export, preview-equals-export test, RAW sample check.
-2. Single-photo editor on the laptop shell: all sliders, crop, before/after, undo, auto fix, export.
+2. Single-photo editor on the laptop shell: all sliders, crop, before/after, undo, export.
 3. Batch: import (picker, folder, drag and drop), filmstrip, pick/reject, copy/paste, apply to all.
 4. Presets.
 5. Templates: built template editor, imported frames, photo credit, output shapes, crop to shape.

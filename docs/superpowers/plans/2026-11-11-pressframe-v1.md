@@ -33,6 +33,47 @@
 4. **Imported `.pfkit` has zip entries with `..` or absolute paths.** Expected: kit rejected, nothing written outside the app folder. Pinned in Task 11.
 5. **Export cancelled or app closed mid-file.** Expected: no half-written JPEG in the output folder. Pinned in Task 6.
 
+## Amendments (2026-11-12, UI review)
+
+Dewdew reviewed drawn mock-ups and agreed the list in `docs/ui-changes.md`. Read that file. **Where a task below disagrees with this section or that file, this section wins.** The spec is already updated.
+
+**Engine (Tasks 1 and 3).** `EditParams` gains four fields, all −1..1, neutral 0: `whites`, `blacks`, `texture`, `clarity`. Task 1 is already built, so add them there first with tests: round trip includes them, and `fromJson` of a JSON without them gives 0 (old presets stay valid). Shader additions:
+```
+// with sharpen, before linearizing (ring = mean of 8 taps on a circle)
+c += uTexture * 0.6 * (c - ring(4.0  * uTexel))
+c += uClarity * 0.5 * (c - ring(24.0 * uTexel)) * (1.0 - abs(2.0*L0 - 1.0))   // L0 = luma of c
+// right after the shadows/highlights line
+c += uWhites * 0.25 * pow(L, 4.0) + uBlacks * 0.25 * pow(1.0 - L, 4.0)
+```
+Skip a ring when its slider is 0. Mark the ring blur `// shortcut: 8-tap ring, switch to a two-pass blur if halos show`. Add `whites 0.3, blacks -0.3, texture 0.4, clarity 0.4` to the edit in the `preview equals export` test; if only texture/clarity push it over 2.0, raise the ring to 12 taps, do not raise the threshold.
+
+**Auto fix is removed (Task 4).** Do not create `lib/engine/auto_fix.dart`, `test/auto_fix_test.dart`, the `autoFix` function or the button.
+
+**Laptop shell (Tasks 4, 6, 7, 8, 10).**
+- Top bar: Import, step bar `1 Edit › 2 Review › 3 Export` (current step highlighted, steps clickable), `⋮ More` menu holding Kit (Export kit, Import kit), Filter, Apply to all. No separate Edit/Review/Export/Kit buttons.
+- Bottom bar: filmstrip, photo counter `3 / 24`, and one main button: `Next: Review →` on Edit, `Export all` on Review (opens the export sheet).
+- On the photo, top right: `Before / After` button and a pill with Undo, Redo, Reset. `\` still works.
+- Photo hint: "Scroll to zoom, drag to move."
+- Presets: `⋮` next to Save current holds Import preset and, per saved preset, Export and Delete.
+- Undo shows a toast "Undone. Redo?" whose action redoes. Every icon button has a tooltip.
+
+**Sliders (Task 4, shared widget).** Label left, value box right, thin track with a triangle marker below. Warmth track blue→yellow, Tint green→magenta. Display value = `round(value × 100)`; Brightness shows the raw value with 2 decimals. Labels: `exposure` → "Brightness", `temperature` → "Warmth"; the rest keep their names. Order and grouping:
+- Light: Brightness, Contrast, Shadows | More controls: Highlights, Whites, Blacks
+- Color: Warmth, Saturation | More controls: Tint, Vibrance
+- Detail: Sharpen | More controls: Texture, Clarity
+
+"More controls ▾" is collapsed by default, at least 44 px tall. Task 4's widget test checks: the six visible labels above are found, "Highlights" is not found until "More controls" under Light is tapped, and no "Auto fix" exists.
+
+**Text and color.** Hint text `#A8A8A8` on `#2A2A2A`. Smallest text 12 px.
+
+**Speed (Tasks 4, 7, 6).** While a slider is dragged (`setEdit(commit: false)`), `PreviewView` renders from a copy at half the preview long edge (1024 laptop, 640 phone); on release it renders at full preview size.
+
+**Empty state (Task 7).** With no photos: a large "Add photos" drop area and three lines: "1 Edit one photo", "2 Review the batch", "3 Export all".
+
+**Phone shell (Task 12).** Four bottom tabs: Light, Color, Crop, Template (44 px tall minimum, 14 px text). Preset chips (built-ins then saved, with the `⋮`) at the top of the Light tab; the Detail section sits at the bottom of the Light tab. Top bar: back, `3 / 48`, flag, `⋮` (Import, Kit, Filter, Apply to all), and a `Next →` pill that goes Edit → Review → Export. Task 12's widget test expects exactly these four tabs and, on Color, "Warmth" visible and "Brightness" hidden.
+
+**Not changed:** Import menu, Template section and editor, Crop section, Review grid and side panel, Export sheet fields, keyboard shortcuts.
+
 ## File Map
 
 ```
