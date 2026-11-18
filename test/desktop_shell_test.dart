@@ -123,10 +123,10 @@ void main() {
     expect(find.text('1 / 2'), findsOneWidget);
     expect(find.text('Export all'), findsNothing);
 
-    await tester.tap(find.text('Next: Review →'));
+    await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
     expect(find.byType(ReviewGrid), findsOneWidget);
-    expect(find.text('Next: Review →'), findsNothing);
+    expect(find.text('Next'), findsNothing);
 
     await tester.tap(find.text('Export all'));
     await tester.pumpAndSettle();
@@ -137,10 +137,26 @@ void main() {
     await tester.tap(find.text('1 Edit'));
     await tester.pumpAndSettle();
     expect(find.byType(ReviewGrid), findsNothing);
-    expect(find.text('Next: Review →'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
   });
 
-  testWidgets('the More menu holds kit, filter and apply to all', (tester) async {
+  testWidgets('the logo asks to save or discard, and Discard empties the session', (tester) async {
+    final session = await pumpShell(tester, photos: 2);
+    await tester.tap(find.byKey(const ValueKey('app-home')));
+    await tester.pumpAndSettle();
+    expect(find.text('Go back to the start?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(session.items, hasLength(2));
+
+    await tester.tap(find.byKey(const ValueKey('app-home')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(session.items, isEmpty);
+  });
+
+  testWidgets('the more menu holds kit, filter and apply to all', (tester) async {
     final session = await pumpShell(tester, photos: 2);
     session.setEdit(session.selected!.edit.copyWith(exposure: 0.5), commit: true);
     await tester.pump();

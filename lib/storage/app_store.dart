@@ -150,9 +150,15 @@ class AppStore {
     return l.isNotEmpty && l.first is Map<String, dynamic> ? l.first as Map<String, dynamic> : null;
   }
 
+  /// True after "Save" on the logo: the empty screen must not wipe the saved session.
+  bool holdSession = false;
+
   /// null clears it (nothing left to continue).
-  Future<void> saveSession(Map<String, dynamic>? data) =>
-      _writeList('session.json', [if (data != null) data]);
+  Future<void> saveSession(Map<String, dynamic>? data) async {
+    if (data == null && holdSession) return;
+    if (data != null) holdSession = false;
+    await _writeList('session.json', [if (data != null) data]);
+  }
 
   Future<List<String>> loadCreditNames() async => [
     for (final n in await _readList('credit_names.json'))

@@ -193,6 +193,7 @@ class _PreviewViewState extends State<PreviewView> {
             onLongPressEnd: (_) => session.showBefore.value = false,
             child: InteractiveViewer(
               transformationController: _zoom,
+              minScale: 1, // the default 0.8 lets the photo shrink and slide into a corner
               maxScale: 8,
               child: RepaintBoundary(
                 child: CustomPaint(

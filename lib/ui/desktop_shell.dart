@@ -240,7 +240,16 @@ class _DesktopShellState extends State<DesktopShell> {
                 color: const Color(0xCC2A2A2A),
                 shape: const StadiumBorder(),
                 clipBehavior: Clip.antiAlias,
-                child: Row(
+                child: IconButtonTheme(
+                  data: IconButtonThemeData(
+                    style: IconButton.styleFrom(
+                      iconSize: 18,
+                      padding: const EdgeInsets.all(6),
+                      minimumSize: const Size(32, 32),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
@@ -276,6 +285,7 @@ class _DesktopShellState extends State<DesktopShell> {
                       icon: const Icon(Icons.restart_alt),
                     ),
                   ],
+                ),
                 ),
               ),
               ),
@@ -323,6 +333,31 @@ class _DesktopShellState extends State<DesktopShell> {
     ],
   );
 
+  /// The logo goes back to an empty start. With photos open it first asks what to do with them.
+  Future<void> _goHome() async {
+    if (session.items.isEmpty) return setState(() => _step = _Step.edit);
+    final keep = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Go back to the start?'),
+        content: const Text('Save your progress to continue it next time, or discard these photos and edits.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Discard')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (keep == null || !mounted) return;
+    if (keep) await widget.store?.saveSession(session.toJson());
+    widget.store?.holdSession = keep;
+    session.clear();
+    setState(() {
+      _step = _Step.edit;
+      _cropping = false;
+    });
+  }
+
   Widget _topBar() => Container(
     color: panelColor,
     height: 48,
@@ -334,9 +369,18 @@ class _DesktopShellState extends State<DesktopShell> {
         final current = _exporting ? _Step.export : _step;
         return Row(
           children: [
-            Image.asset('assets/logo.png', key: const ValueKey('app-logo'), width: 28, height: 28),
-            const SizedBox(width: 8),
-            const Text('PressFrame', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+            InkWell(
+              key: const ValueKey('app-home'),
+              onTap: _goHome,
+              borderRadius: BorderRadius.circular(6),
+              child: Row(
+                children: [
+                  Image.asset('assets/logo.png', key: const ValueKey('app-logo'), width: 28, height: 28),
+                  const SizedBox(width: 8),
+                  const Text('PressFrame', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                ],
+              ),
+            ),
             const SizedBox(width: 16),
             PopupMenuButton<VoidCallback>(
               tooltip: 'Import photos',
@@ -492,7 +536,7 @@ class _DesktopShellState extends State<DesktopShell> {
                     : _step == _Step.edit
                     ? () => setState(() => _step = _Step.review)
                     : _export,
-                child: Text(_step == _Step.edit ? 'Next: Review →' : 'Export all'),
+                child: Text(_step == _Step.edit ? 'Next' : 'Export all'),
               ),
               const SizedBox(width: 12),
             ],
